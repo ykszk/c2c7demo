@@ -1,0 +1,3 @@
+[submodule "clahe"]
+	path = clahe
+	url = git@github.com:yk-szk/clahe.git
