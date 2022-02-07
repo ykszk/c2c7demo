@@ -21,6 +21,11 @@ struct Args {
     /// Output image filename
     output: String,
 
+    /// Model path
+    #[clap(short, long, default_value = "c2c7.onnx")]
+    model: String,
+
+    /// Specify once or twice to set log level info or debug repsectively.
     #[clap(short, long, parse(from_occurrences))]
     verbose: usize,
 }
@@ -37,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let env = Env::default().filter_or("LOG_LEVEL", log_level);
     Builder::from_env(env)
-        .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
+        .format_timestamp(Some(env_logger::TimestampPrecision::Seconds))
         .init();
 
     let try_dicom = if let Some(ext) = Path::new(&args.input).extension() {
