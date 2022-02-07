@@ -11,6 +11,7 @@ use env_logger::{Builder, Env};
 use image::error::{ImageFormatHint, UnsupportedError};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
+use tract_onnx::prelude::*;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -54,7 +55,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             let pixel_representation: u8 = obj.element_by_name("PixelRepresentation")?.to_int()?;
             let bits_allocated: u8 = obj.element_by_name("BitsAllocated")?.to_int()?;
             let bits_stored: u8 = obj.element_by_name("BitsStored")?.to_int()?;
-            debug!("pixel representation {}, bits_stored {}", pixel_representation, bits_stored);
+            debug!(
+                "pixel representation {}, bits_stored {}",
+                pixel_representation, bits_stored
+            );
             // let compression: u8 = obj.element_by_name("LossyImageCompression")?.to_int()?;
             assert_eq!(bits_allocated, 16, "Not a 16bit dicom");
             let width: u32 = obj.element(dictionary_std::tags::COLUMNS)?.to_int()?;
@@ -87,19 +91,59 @@ fn main() -> Result<(), Box<dyn Error>> {
     let img = match img {
         DynamicImage::ImageLuma8(img) => {
             debug!("input u8 to clahe");
-            clahe(&img, 16, 16, 10)?}
-            ,
+            clahe(&img, 16, 16, 10)?
+        }
         DynamicImage::ImageLuma16(img) => {
             debug!("input u16 to clahe");
             clahe(&img, 16, 16, 10)?
-        },
+        }
         _ => {
-            let hint =
-                ImageFormatHint::Name("u8 or u16 image is expected".to_string());
+            let hint = ImageFormatHint::Name("u8 or u16 image is expected".to_string());
             return Err(UnsupportedError::from(hint).into());
         }
     };
+
+    let pad_width = ((new_width as f64 / 256.0).ceil() * 256.0) as u32;
+    let (input_width, input_height) = (pad_width, target_height);
+
+    info!("Load model");
+    let model = tract_onnx::onnx()
+        .model_for_path("c2c7.onnx")?
+        .with_input_fact(
+            0,
+            InferenceFact::dt_shape(
+                f32::datum_type(),
+                tvec!(1, 1, input_height as usize, input_width as usize),
+            ),
+        )?
+        .into_optimized()?
+        .into_runnable()?;
+
+    let image: Tensor = tract_ndarray::Array4::from_shape_fn(
+        (1, 1, input_height as usize, input_width as usize),
+        |(_, c, y, x)| {
+            if img.in_bounds(x as _, y as _) {
+                img[(x as _, y as _)][c] as f32 / 255.0
+            } else {
+                0.0
+            }
+        },
+    )
+    .into();
+
+    info!("Run model");
+    // run the model on the input
+    let result = model.run(tvec!(image))?;
+    debug!("Output shape {:?}", result[0].shape());
+    let view = result[0].to_array_view::<f32>()?;
+    let u8arr: Vec<u8> = view.iter().map(|v| (v * 255.0).round() as u8).collect();
     info!("Save {}", args.output);
     img.save(&args.output).unwrap();
+    use std::fs::File;
+    use std::io::Write;
+    let mut file = File::create("result.bin")?;
+    file.write_all(u8arr.as_slice())?;
+    file.flush()?;
+
     Ok(())
 }
