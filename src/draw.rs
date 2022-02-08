@@ -117,6 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let right_line = lyon_geom::Line::from_points(tr, br);
     let points: Vec<Point> = labels.iter().map(|l| shape_map[*l]).collect();
     let mut group = element::Group::new()
+        .set("fill", "none")
         .set("stroke", line_color)
         .set("stroke-width", line_width);
 
@@ -208,6 +209,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .set("fill", "black")
             .add(text_node);
         document = document.add(text);
+
+        // draw arcs
+        for (i, (line_self, line_other)) in vec![(c2_line, c7_line), (c7_line, c2_line)]
+            .into_iter()
+            .enumerate()
+        {
+            let aux_on_line = line_self.equation().project_point(&aux_int);
+            let start = aux_on_line.lerp(
+                lyon_geom::Line::from_points(aux_on_line, aux_int)
+                    .intersection(&line_other)
+                    .unwrap(),
+                0.70,
+            );
+            let radius = (start - aux_int).length();
+            let rot_sign = if i == 0 { 1.0 } else { -1.0 };
+            let mut rot_angle = c2_line.vector.angle_to(c7_line.vector);
+            rot_angle.radians *= rot_sign;
+            let t_origin = lyon_geom::Transform::translation(-aux_int.x, -aux_int.y);
+            let t = t_origin
+                .then_rotate(rot_angle)
+                .then_translate(lyon_geom::Vector::new(aux_int.x, aux_int.y));
+            let end = t.transform_point(start) - start;
+            let mut data = element::path::Data::new().move_to((start.x, start.y));
+            let slope = line_self.vector.y.atan2(line_self.vector.x).to_degrees();
+            data = data.elliptical_arc_by((radius, radius, slope, 0, 1, end.x, end.y));
+            let path = element::Path::new().set("d", data);
+            group = group.add(path);
+        }
     }
 
     document = document.add(group);
