@@ -7,6 +7,7 @@ use svg::node;
 use svg::node::element::{self, Circle};
 
 pub type Point = (f32, f32);
+pub const LABELS: [&str; 4] = ["C2A", "C2P", "C7A", "C7P"];
 
 pub trait FromPoint<S> {
     fn from_points(p1: lyon_geom::Point<S>, p2: lyon_geom::Point<S>) -> Self
@@ -51,6 +52,44 @@ pub struct PointData {
     pub imageWidth: usize,
 }
 
+impl PointData {
+    pub fn new(
+        points: &[Point],
+        labels: &[String],
+        width: usize,
+        height: usize,
+        path: &str,
+    ) -> Self {
+        let shapes: Vec<Shape> = points
+            .iter()
+            .zip(labels)
+            .map(|(p, l)| Shape {
+                label: l.into(),
+                points: vec![*p],
+                group_id: None,
+                shape_type: "point".into(),
+                flags: Flags {},
+            })
+            .collect();
+        Self {
+            version: "4.5.7".into(),
+            flags: Flags {},
+            shapes: shapes,
+            imagePath: path.into(),
+            imageData: None,
+            imageHeight: height,
+            imageWidth: width,
+        }
+    }
+
+    pub fn save(self: &Self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let mut writer = std::io::BufWriter::new(std::fs::File::create(filename)?);
+        serde_json::to_writer_pretty(writer, self)
+            .or_else(|err| Err(Box::new(err) as Box<dyn std::error::Error>))?;
+        return Ok(());
+    }
+}
+
 fn img2base64(img: &image::DynamicImage) -> String {
     let mut buf = Vec::new();
     img.write_to(&mut buf, image::ImageOutputFormat::Png)
@@ -88,9 +127,8 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
         document = document.add(bg);
     }
 
-    let labels = vec!["C2A", "C2P", "C7A", "C7P"];
     // draw lines
-    let line_width = 10;
+    let line_width = 10i32;
     let line_color = "yellow";
     let tl = lyon_geom::Point::new(0f32, 0f32);
     let tr = lyon_geom::Point::new(image_width as f32, 0f32);
@@ -100,7 +138,7 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
     let bottom_line = lyon_geom::Line::from_points(bl, br);
     let left_line = lyon_geom::Line::from_points(tl, bl);
     let right_line = lyon_geom::Line::from_points(tr, br);
-    let points: Vec<Point> = labels.iter().map(|l| shape_map[*l]).collect();
+    let points: Vec<Point> = LABELS.iter().map(|l| shape_map[*l]).collect();
     let mut group = element::Group::new()
         .set("fill", "none")
         .set("stroke", line_color)
@@ -204,8 +242,8 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
                 1
             } else {
                 0
-            };
-            let f2 = if i == 0 { 0 } else { 1 };
+            } as i32;
+            let f2 = if i == 0 { 0 } else { 1 } as i32;
             data = data.elliptical_arc_by((radius, radius, slope, f1, f2, end.x, end.y));
             let path = element::Path::new().set("d", data);
             group = group.add(path);
@@ -229,8 +267,8 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
     // draw points
     let colors = vec!["red", "lime", "blue", "magenta"];
     let point_radius = "10";
-    for (label, color) in labels.into_iter().zip(colors) {
-        let point_xy = shape_map[label];
+    for (label, color) in LABELS.iter().zip(colors) {
+        let point_xy = shape_map[*label];
         let circle = Circle::new()
             .set("fill", color)
             .set("stroke", "black")
@@ -238,7 +276,7 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
             .set("cx", point_xy.0)
             .set("cy", point_xy.1)
             .set("r", point_radius);
-        let text_node = node::Text::new(label);
+        let text_node = node::Text::new(*label);
         let text = element::Text::new()
             .set("x", point_xy.0)
             .set("y", point_xy.1)

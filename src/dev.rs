@@ -5,7 +5,7 @@ extern crate log;
 use env_logger::{Builder, Env};
 use tract_onnx::prelude::tract_ndarray;
 
-use c2c7demo::extract_points;
+use c2c7demo::{extract_points, PointData, LABELS};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env = Env::default().filter_or("LOG_LEVEL", "debug");
@@ -26,8 +26,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arr = tract_ndarray::Array3::from_shape_vec((chs, height, width), buffer)?;
     debug!("array shape: {:?}", arr.shape());
     let optimal_points = extract_points(&arr);
-
     debug!("Optimal points\n{:?}", optimal_points);
-
+    let labels: Vec<String> = LABELS.iter().map(|s| String::from(*s)).collect();
+    let data = PointData::new(&optimal_points, &labels, width, height, "");
+    data.save("tmp.json")?;
     return Ok(());
 }
