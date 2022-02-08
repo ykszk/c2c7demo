@@ -44,7 +44,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = BufReader::new(file);
     let json_data: PointData = serde_json::from_reader(reader)
         .map_err(|err| Box::new(err) as Box<dyn std::error::Error>)?;
-    let document = draw(json_data, args.background);
+    let background = args.background.map(|name| image::open(name).unwrap());
+    let document = draw(json_data, background);
     if args.output.ends_with(".svg") {
         debug!("Save SVG");
         svg::save(args.output, &document).unwrap();

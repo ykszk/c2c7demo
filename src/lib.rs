@@ -96,7 +96,7 @@ fn img2base64(img: &image::DynamicImage) -> String {
     base64::encode(&buf)
 }
 
-pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
+pub fn draw(json_data: PointData, background: Option<image::DynamicImage>) -> svg::Document {
     let (image_width, image_height) = (json_data.imageWidth, json_data.imageHeight);
     let shapes = json_data.shapes;
     assert!(shapes.len() >= 4);
@@ -113,8 +113,7 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
         .set("viewBox", (0i64, 0i64, image_width, image_height));
 
     // set background
-    if let Some(bg_filename) = background {
-        let base_img = image::open(bg_filename).unwrap();
+    if let Some(base_img) = background {
         let res_base64 = img2base64(&base_img);
         let b64 = "data:image/png;base64,".to_owned() + &res_base64;
         let bg = element::Image::new()
@@ -381,5 +380,5 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
             optimal_points.push(right);
         }
     }
-    optimal_points
+    optimal_points.into_iter().map(|(y,x)| (x,y)).collect()
 }
