@@ -38,6 +38,15 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 
+fn img2base64(img: &image::GrayImage) -> String {
+    let mut buf = Vec::new();
+    let base_img = image::open("dicom.png").unwrap();
+    base_img
+        .write_to(&mut buf, image::ImageOutputFormat::Png)
+        .unwrap();
+    base64::encode(&buf)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env = Env::default().filter_or("LOG_LEVEL", "debug");
     Builder::from_env(env)
@@ -49,30 +58,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = BufReader::new(file);
     let json_data: PointData = serde_json::from_reader(reader)
         .or_else(|err| Err(Box::new(err) as Box<dyn std::error::Error>))?;
-    println!("{:?}", json_data);
     let (image_width, image_height) = (json_data.imageWidth, json_data.imageHeight);
     let shapes = json_data.shapes;
     assert!(shapes.len() >= 4);
     let mut shape_map = HashMap::new();
     for shape in shapes.into_iter() {
-        println!("{:?}", shape);
         assert_eq!(shape.points.len(), 1);
+        debug!("{}: {:?}", shape.label, shape.points[0]);
         shape_map.insert(shape.label, shape.points[0]);
     }
 
-    let labels = vec!["C2A", "C2P", "C7A", "C7P"];
-    let colors = vec!["red", "lime", "blue", "magenta"];
     let mut document = Document::new()
         .set("width", image_width)
         .set("height", image_height)
         .set("viewBox", (0, 0, image_width, image_height));
 
-    let mut buf = Vec::new();
+    // set background
     let base_img = image::open("dicom.png").unwrap();
-    base_img
-        .write_to(&mut buf, image::ImageOutputFormat::Png)
-        .unwrap();
-    let res_base64 = base64::encode(&buf);
+    let res_base64 = img2base64(&base_img.to_luma8());
     let b64 = "data:image/png;base64,".to_owned() + &res_base64;
     let bg = element::Image::new()
         .set("x", 0)
@@ -82,8 +85,69 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .set("href", b64);
     document = document.add(bg);
 
+    let labels = vec!["C2A", "C2P", "C7A", "C7P"];
+    // draw lines
+    let line_width = 10;
+    let line_color = "yellow";
+    let image_box = lyon_geom::Box2D::new(
+        lyon_geom::Point::new(0f32, 0f32),
+        lyon_geom::Point::new(image_width as f32, image_height as f32),
+    );
+    let tl = lyon_geom::Point::new(0f32, 0f32);
+    let tr = lyon_geom::Point::new(image_width as f32, 0f32);
+    let top_line = lyon_geom::Line {
+        point: tl,
+        vector: tr - tl,
+    };
+
+    let bl = lyon_geom::Point::new(0f32, image_height as f32);
+    let br = lyon_geom::Point::new(image_width as f32, image_height as f32);
+    let bottom_line = lyon_geom::Line {
+        point: bl,
+        vector: br - bl,
+    };
+    let left_line = lyon_geom::Line {
+        point: tl,
+        vector: bl - tl,
+    };
+    let right_line = lyon_geom::Line {
+        point: tr,
+        vector: br - tr,
+    };
+    let points: Vec<Point> = labels.iter().map(|l| shape_map[*l]).collect();
+    let mut group = element::Group::new()
+        .set("stroke", line_color)
+        .set("stroke-width", line_width);
+    for (p1, p2) in vec![(points[0], points[1]), (points[2], points[3])] {
+        let p = lyon_geom::Point::new(p1.0, p1.1);
+        let v = p - lyon_geom::Point::new(p2.0, p2.1);
+        let line = lyon_geom::Line {
+            point: p,
+            vector: v,
+        };
+        let (int1, int2) = if (v.y / v.x) > 0.5 {
+            (
+                line.intersection(&top_line).unwrap(),
+                line.intersection(&bottom_line).unwrap(),
+            )
+        } else {
+            (
+                line.intersection(&left_line).unwrap(),
+                line.intersection(&right_line).unwrap(),
+            )
+        };
+        let line = element::Line::new()
+            .set("x1", int1.x)
+            .set("y1", int1.y)
+            .set("x2", int2.x)
+            .set("y2", int2.y);
+        group = group.add(line);
+    }
+    document = document.add(group);
+
+    // draw points
+    let colors = vec!["red", "lime", "blue", "magenta"];
     let point_radius = "10";
-    let point_color = "red";
     let font_size = "64";
     let font_family = "serif";
     for (label, color) in labels.into_iter().zip(colors) {
@@ -106,12 +170,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         document = document.add(circle).add(text);
     }
     svg::save("wbg.svg", &document).unwrap();
-    // let rtree = resvg::usvg::
-    // resvg::render()
-    // use resvg::usvg;
     let mut opt = usvg::Options::default();
-    // Get file's absolute directory.
-    // opt.resources_dir = std::fs::canonicalize(&args[1]).ok().and_then(|p| p.parent().map(|p| p.to_path_buf()));
     opt.fontdb.load_system_fonts();
     let rtree = usvg::Tree::from_str(&document.to_string(), &opt.to_ref()).unwrap();
     let pixmap_size = rtree.svg_node().size.to_screen_size();
@@ -123,13 +182,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pixmap.as_mut(),
     )
     .unwrap();
+    debug!("Render");
     pixmap.save_png("rendered.png").unwrap();
-
-    // let mut buf = Vec::new();
-    // svg::write(buf, &document).unwrap();
-    // let svg_string = String::from_utf8(buf).unwrap();
-
-    // svg::save("image.svg", &document).unwrap();
-    // svg::
     return Ok(());
 }
