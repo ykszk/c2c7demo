@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(args.input)?;
     let reader = BufReader::new(file);
     let json_data: PointData = serde_json::from_reader(reader)
-        .or_else(|err| Err(Box::new(err) as Box<dyn std::error::Error>))?;
+        .map_err(|err| Box::new(err) as Box<dyn std::error::Error>)?;
     let document = draw(json_data, args.background);
     if args.output.ends_with(".svg") {
         debug!("Save SVG");
@@ -67,5 +67,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .save(args.output)
             .unwrap();
     }
-    return Ok(());
+    Ok(())
 }

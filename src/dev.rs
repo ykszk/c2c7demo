@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut f = File::open(&filename).expect("no file found");
     let metadata = fs::metadata(&filename).expect("unable to read metadata");
     let mut buffer = vec![0; metadata.len() as usize];
-    f.read(&mut buffer).expect("buffer overflow");
+    f.read_exact(&mut buffer).expect("buffer overflow");
     if buffer.len() != chs * height * width {
         panic!("Invalid input size")
     } else {
@@ -26,9 +26,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arr = tract_ndarray::Array3::from_shape_vec((chs, height, width), buffer)?;
     debug!("array shape: {:?}", arr.shape());
     let optimal_points = extract_points(&arr);
-    debug!("Optimal points\n{:?}", optimal_points);
+    debug!("Optimal points {:?}", optimal_points);
     let labels: Vec<String> = LABELS.iter().map(|s| String::from(*s)).collect();
     let data = PointData::new(&optimal_points, &labels, width, height, "");
     data.save("tmp.json")?;
-    return Ok(());
+    Ok(())
 }

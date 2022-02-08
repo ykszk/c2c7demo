@@ -74,7 +74,7 @@ impl PointData {
         Self {
             version: "4.5.7".into(),
             flags: Flags {},
-            shapes: shapes,
+            shapes,
             imagePath: path.into(),
             imageData: None,
             imageHeight: height,
@@ -82,11 +82,10 @@ impl PointData {
         }
     }
 
-    pub fn save(self: &Self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let mut writer = std::io::BufWriter::new(std::fs::File::create(filename)?);
+    pub fn save(&self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let writer = std::io::BufWriter::new(std::fs::File::create(filename)?);
         serde_json::to_writer_pretty(writer, self)
-            .or_else(|err| Err(Box::new(err) as Box<dyn std::error::Error>))?;
-        return Ok(());
+            .map_err(|err| Box::new(err) as Box<dyn std::error::Error>)
     }
 }
 
@@ -154,7 +153,7 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
         lyon_geom::Point::new(p1.0, p1.1),
         lyon_geom::Point::new(p2.0, p2.1),
     );
-    for line in vec![c2_line, c7_line] {
+    for line in [c2_line, c7_line] {
         let v = &line.vector;
         let (int1, int2) = if (v.y / v.x) > 0.5 {
             (
@@ -200,7 +199,7 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
             .then_translate(lyon_geom::Vector::new(intersect.x, intersect.y));
         let aux_int = t.transform_point(aux_c2);
         debug!("Aux intersection {:?}", aux_int);
-        for (line_self, line_other) in vec![(c2_line, c7_line), (c7_line, c2_line)] {
+        for (line_self, line_other) in [(c2_line, c7_line), (c7_line, c2_line)] {
             let aux_on_line = line_self.equation().project_point(&aux_int);
             let aux_p1 = aux_on_line.lerp(
                 lyon_geom::Line::from_points(aux_on_line, aux_int)
@@ -216,7 +215,7 @@ pub fn draw(json_data: PointData, background: Option<String>) -> svg::Document {
             group = group.add(line);
         }
         // draw arcs
-        for (i, (line_self, line_other)) in vec![(c2_line, c7_line), (c7_line, c2_line)]
+        for (i, (line_self, line_other)) in [(c2_line, c7_line), (c7_line, c2_line)]
             .into_iter()
             .enumerate()
         {
@@ -336,7 +335,7 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
                 }
             }
             assert!(
-                argmax.len() > 0,
+                !argmax.is_empty(),
                 "No argmax (coordinates with maximum value) found."
             );
             let sum_argmax: (usize, usize) = argmax
@@ -348,7 +347,7 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
             );
             cand_points.push(mean_argmax);
         }
-        assert!(cand_points.len() > 0);
+        assert!(!cand_points.is_empty());
         candidates.push(cand_points);
     }
     assert_eq!(candidates.len(), 4);
@@ -359,7 +358,7 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
         let cand_left = &candidates[c2c7 * 2];
         let cand_right = &candidates[c2c7 * 2 + 1];
         if cand_left.len() == 1 && cand_right.len() == 1 {
-            debug!("No need to find optimal point pairs");
+            debug!("No need to find optimal point pairs for {}", c2c7);
             optimal_points.push(cand_left[0]);
             optimal_points.push(cand_right[0]);
         } else {
