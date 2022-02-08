@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 // use serde_json::Result;
 use std::collections::HashMap;
-use svg::node::element::path::Data;
-use svg::node::element::{self, Circle, Text};
-use svg::node::{self, Value};
+use svg::node::element::{self, Circle};
+use svg::node;
 use svg::Document;
 #[macro_use]
 extern crate log;
@@ -55,7 +54,6 @@ struct PointData {
 }
 
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::BufReader;
 
 fn img2base64(img: &image::DynamicImage) -> String {
@@ -200,16 +198,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .set("y2", aux_on_line.y);
             group = group.add(line);
         }
-        let text_node = node::Text::new(angle);
-        let text = element::Text::new()
-            .set("x", aux_int.x)
-            .set("y", aux_int.y)
-            .set("font-family", font_family)
-            .set("font-size", font_size)
-            .set("fill", "black")
-            .add(text_node);
-        document = document.add(text);
-
         // draw arcs
         for (i, (line_self, line_other)) in vec![(c2_line, c7_line), (c7_line, c2_line)]
             .into_iter()
@@ -233,10 +221,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let end = t.transform_point(start) - start;
             let mut data = element::path::Data::new().move_to((start.x, start.y));
             let slope = line_self.vector.y.atan2(line_self.vector.x).to_degrees();
-            data = data.elliptical_arc_by((radius, radius, slope, 0, 1, end.x, end.y));
+            let f1 = if rot_angle.radians.abs() > 180.0 {1} else {0};
+            let f2 = if i==0 {0} else {1};
+            data = data.elliptical_arc_by((radius, radius, slope, f1, f2, end.x, end.y));
             let path = element::Path::new().set("d", data);
             group = group.add(path);
         }
+
+        let text_node = node::Text::new(angle);
+        let text = element::Text::new()
+            .set("x", aux_int.x)
+            .set("y", aux_int.y)
+            .set("font-family", font_family)
+            .set("font-size", font_size)
+            .set("fill", "black")
+            .add(text_node);
+        document = document.add(text);
     }
 
     document = document.add(group);
