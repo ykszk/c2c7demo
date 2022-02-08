@@ -3,6 +3,7 @@ use std::path::Path;
 
 #[macro_use]
 extern crate log;
+use c2c7demo::{draw, extract_points, PointData, LABELS};
 use clahe::clahe;
 use clap::Parser;
 use dicom::dictionary_std;
@@ -96,11 +97,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let img = match img {
         DynamicImage::ImageLuma8(img) => {
             debug!("input u8 to clahe");
-            clahe(&img, 16, 16, 10)?
+            clahe(&img, 32, 32, 10)?
         }
         DynamicImage::ImageLuma16(img) => {
             debug!("input u16 to clahe");
-            clahe(&img, 16, 16, 10)?
+            clahe(&img, 32, 32, 10)?
         }
         _ => {
             let hint = ImageFormatHint::Name("u8 or u16 image is expected".to_string());
@@ -140,15 +141,53 @@ fn main() -> Result<(), Box<dyn Error>> {
     // run the model on the input
     let result = model.run(tvec!(image))?;
     debug!("Output shape {:?}", result[0].shape());
-    let view = result[0].to_array_view::<f32>()?;
-    let u8arr: Vec<u8> = view.iter().map(|v| (v * 255.0).round() as u8).collect();
-    info!("Save {}", args.output);
-    img.save(&args.output).unwrap();
-    use std::fs::File;
-    use std::io::Write;
-    let mut file = File::create("result.bin")?;
-    file.write_all(u8arr.as_slice())?;
-    file.flush()?;
+    let (img_width, img_height) = img.dimensions();
+    let arr4: tract_ndarray::ArrayView4<f32> = result[0]
+        .to_array_view::<f32>()?
+        .into_dimensionality()
+        .unwrap();
+    let arr3 = arr4
+        .slice(tract_ndarray::s![
+            0usize,
+            ..,
+            0..img_height as usize,
+            0..img_width as usize
+        ])
+        .map(|v| (v * 255.0) as u8);
 
+    let optimal_points = extract_points(&arr3);
+
+    debug!("Optimal points {:?}", optimal_points);
+    let labels: Vec<String> = LABELS.iter().map(|s| String::from(*s)).collect();
+    let data = PointData::new(
+        &optimal_points,
+        &labels,
+        img_width as _,
+        img_height as _,
+        "",
+    );
+    let document = draw(data, Some(image::DynamicImage::ImageLuma8(img)));
+    if args.output.ends_with(".svg") {
+        debug!("Save SVG");
+        svg::save(args.output, &document).unwrap();
+    } else {
+        let mut opt = usvg::Options::default();
+        opt.fontdb.load_system_fonts();
+        let rtree = usvg::Tree::from_str(&document.to_string(), &opt.to_ref()).unwrap();
+        let pixmap_size = rtree.svg_node().size.to_screen_size();
+        let mut pixmap = tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
+        debug!("Render");
+        resvg::render(
+            &rtree,
+            usvg::FitTo::Original,
+            tiny_skia::Transform::default(),
+            pixmap.as_mut(),
+        )
+        .unwrap();
+        image::RgbaImage::from_raw(pixmap.width(), pixmap.height(), pixmap.data().into())
+            .unwrap()
+            .save(args.output)
+            .unwrap();
+    }
     Ok(())
 }
