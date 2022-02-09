@@ -206,7 +206,11 @@ pub fn draw(
         debug!("Draw aux lines");
         let a = lyon_geom::Point::new(points[0].0, points[0].1);
         let p = lyon_geom::Point::new(points[1].0, points[1].1);
-        let aux_c2 = p + (p - a) / 2.0;
+        let aux_c2 = if a.distance_to(intersect) > p.distance_to(intersect) {
+            p + (p - a)
+        } else {
+            a + (a - p)
+        };
         let t_origin = lyon_geom::Transform::translation(-intersect.x, -intersect.y);
         let mut rot_angle = c2_line.vector.angle_to(c7_line.vector);
         rot_angle.radians /= 2.0;
@@ -258,7 +262,7 @@ pub fn draw(
             } else {
                 0
             } as i32;
-            let f2 = if i == 0 { 0 } else { 1 } as i32;
+            let f2 = if rot_angle.radians > 0.0 { 1 } else { 0 } as i32;
             data = data.elliptical_arc_by((radius, radius, slope, f1, f2, end.x, end.y));
             let path = element::Path::new().set("d", data);
             group = group.add(path);
