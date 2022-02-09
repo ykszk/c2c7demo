@@ -374,16 +374,17 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
             optimal_points.push(cand_left[0]);
             optimal_points.push(cand_right[0]);
         } else {
-            debug!("Find optimal point pairs");
+            debug!("Find optimal point pairs for {}", c2c7);
             let affinity = arr.slice(s![c2c7 + 4, .., ..]);
             let mut scores: Vec<(usize, Point, Point)> =
                 Vec::with_capacity(cand_left.len() * cand_right.len());
             for left in cand_left.iter() {
                 for right in cand_right.iter() {
+                    debug!("Calculate the score of {:?},{:?}", left, right);
                     let l = (left.0 as isize, left.1 as isize);
                     let r = (right.0 as isize, right.1 as isize);
                     let score: usize = line_drawing::Bresenham::new(l, r)
-                        .map(|(x, y)| affinity[[y as usize, x as usize]] as usize)
+                        .map(|(y, x)| affinity[[y as usize, x as usize]] as usize)
                         .sum();
                     scores.push((score, *left, *right));
                 }
