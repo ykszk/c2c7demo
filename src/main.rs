@@ -148,6 +148,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let pad_width = ((new_width as f64 / 256.0).ceil() * 256.0) as u32;
     let (input_width, input_height) = (pad_width, target_height);
+    let batch_size = match args.direction {
+        FaceDirection::Auto => 2,
+        _ => 1,
+    };
 
     info!("Load model");
     let model = tract_onnx::onnx()
@@ -156,36 +160,86 @@ fn main() -> Result<(), Box<dyn Error>> {
             0,
             InferenceFact::dt_shape(
                 f32::datum_type(),
-                tvec!(1, 1, input_height as usize, input_width as usize),
+                tvec!(batch_size, 1, input_height as usize, input_width as usize),
             ),
         )?
         .into_optimized()?
         .into_runnable()?;
 
-    let image: Tensor = tract_ndarray::Array4::from_shape_fn(
-        (1, 1, input_height as usize, input_width as usize),
-        |(_, c, y, x)| {
-            if img.in_bounds(x as _, y as _) {
-                img[(x as _, y as _)][c] as f32 / 255.0
-            } else {
-                0.0
-            }
-        },
-    )
-    .into();
+    let input_tensor: Tensor = match args.direction {
+        FaceDirection::Auto => {
+            info!("Face direction Auto");
+            tract_ndarray::Array4::from_shape_fn(
+                (2, 1, input_height as usize, input_width as usize),
+                |(lr, c, y, x)| {
+                    if img.in_bounds(x as _, y as _) {
+                        if lr == 0 {
+                            img[(x as _, y as _)][c] as f32 / 255.0
+                        } else {
+                            // flip
+                            img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32
+                                / 255.0
+                        }
+                    } else {
+                        0.0
+                    }
+                },
+            )
+            .into()
+        }
+        _ => tract_ndarray::Array4::from_shape_fn(
+            (1, 1, input_height as usize, input_width as usize),
+            |(_, c, y, x)| {
+                if img.in_bounds(x as _, y as _) {
+                    img[(x as _, y as _)][c] as f32 / 255.0
+                } else {
+                    0.0
+                }
+            },
+        )
+        .into(),
+    };
 
+    debug!("Input shape {:?}", input_tensor.shape());
     info!("Run model");
     // run the model on the input
-    let result = model.run(tvec!(image))?;
+    let result = model.run(tvec!(input_tensor))?;
     debug!("Output shape {:?}", result[0].shape());
     let (img_width, img_height) = img.dimensions();
     let arr4: tract_ndarray::ArrayView4<f32> = result[0]
         .to_array_view::<f32>()?
         .into_dimensionality()
         .unwrap();
+    let best_batch: usize = match args.direction {
+        FaceDirection::Auto => {
+            let v_maxes: Vec<Vec<f32>> = arr4
+                .axis_iter(tract_ndarray::Axis(0))
+                .map(|output3| {
+                    let maxes: Vec<f32> = output3
+                        .axis_iter(tract_ndarray::Axis(0))
+                        .map(|output2| output2.fold(0f32, |acc, v| f32::max(acc, *v)))
+                        .collect();
+                    maxes
+                })
+                .collect();
+            debug!("All scores {:?}", v_maxes);
+            let mins: Vec<f32> = v_maxes
+                .iter()
+                .map(|v| v.iter().fold(10.0, |acc, v| f32::min(acc, *v)))
+                .collect();
+            debug!("Scores per batch {:?}", mins);
+            assert!(mins.len() == 2);
+            let bb = if mins[0] > mins[1] { 0 } else { 1 };
+            info!("Facing {}", if bb == 0 { "left" } else { "right" });
+            bb
+        }
+        _ => 0,
+    };
+    let flip_needed = best_batch != 0;
+
     let arr3 = arr4
         .slice(tract_ndarray::s![
-            0usize,
+            best_batch,
             ..,
             0..img_height as usize,
             0..img_width as usize
@@ -193,6 +247,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|v| (v * 255.0) as u8);
 
     let optimal_points = extract_points(&arr3);
+    let optimal_points = if flip_needed {
+        optimal_points
+            .into_iter()
+            .map(|(x, y)| (img_width as f32 - x - 1.0, y))
+            .collect()
+    } else {
+        optimal_points
+    };
 
     debug!("Optimal points {:?}", optimal_points);
     let labels: Vec<String> = LABELS.iter().map(|s| String::from(*s)).collect();
