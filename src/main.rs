@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     info!("Open {}", args.input);
-    let img = if try_dicom {
+    let original_img = if try_dicom {
         info!("Open as dicom");
         let obj = open_file(&args.input);
         if let Ok(obj) = obj {
@@ -88,20 +88,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         image::open(&args.input).unwrap()
     };
     let target_height = 768;
-    let (width, height) = img.dimensions();
-    let img = img.grayscale();
+    let (width, height) = original_img.dimensions();
+    let img = original_img.grayscale();
     let new_width: u32 = ((width as f64) * (target_height as f64) / (height as f64)).round() as u32;
     debug!("Original image size: {} {}", width, height);
     info!("Resize to w{} h{}", new_width, target_height);
-    let img = img.resize_exact(new_width, target_height, FilterType::Triangle);
-    let img = match img {
+    let resized_img = img.resize_exact(new_width, target_height, FilterType::Triangle);
+    let img = match &resized_img {
         DynamicImage::ImageLuma8(img) => {
             debug!("input u8 to clahe");
-            clahe(&img, 32, 32, 10)?
+            clahe(img, 32, 32, 10)?
         }
         DynamicImage::ImageLuma16(img) => {
             debug!("input u16 to clahe");
-            clahe(&img, 32, 32, 10)?
+            clahe(img, 32, 32, 10)?
         }
         _ => {
             let hint = ImageFormatHint::Name("u8 or u16 image is expected".to_string());
@@ -166,7 +166,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         img_height as _,
         "",
     );
-    let document = draw(data, Some(image::DynamicImage::ImageLuma8(img)));
+    let background = match resized_img {
+        DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
+        DynamicImage::ImageLuma16(img) => {
+            let max_value = *img.iter().max().unwrap() as f32;
+            let buf: Vec<u8> = img
+                .iter()
+                .map(|p| (*p as f32 / max_value * 255.0).round() as u8)
+                .collect();
+            Some(DynamicImage::ImageLuma8(
+                image::ImageBuffer::from_vec(img_width, img_height, buf).unwrap(),
+            ))
+        }
+        _ => None,
+    };
+    let document = draw(data, background);
     if args.output.ends_with(".svg") {
         debug!("Save SVG");
         svg::save(args.output, &document).unwrap();
