@@ -125,9 +125,13 @@ pub fn draw(json_data: PointData, background: Option<image::DynamicImage>) -> sv
         document = document.add(bg);
     }
 
-    // draw lines
-    let line_width = 10i32;
+    let line_width = 2i32;
     let line_color = "yellow";
+    let font_size = "24";
+    let font_family = "sans-serif";
+    let point_radius = "3";
+
+    // draw lines
     let tl = lyon_geom::Point::new(0f32, 0f32);
     let tr = lyon_geom::Point::new(image_width as f32, 0f32);
     let bl = lyon_geom::Point::new(0f32, image_height as f32);
@@ -179,8 +183,6 @@ pub fn draw(json_data: PointData, background: Option<image::DynamicImage>) -> sv
     let angle = format!("{:.1}°", angle_degree);
     debug!("angle {}", angle);
 
-    let font_size = "64";
-    let font_family = "serif";
     let mut angle_text_position = intersect;
 
     if lyon_geom::Box2D::new(tl, br).contains(intersect) {
@@ -252,19 +254,26 @@ pub fn draw(json_data: PointData, background: Option<image::DynamicImage>) -> sv
 
     document = document.add(group);
 
-    let text_node = node::Text::new(angle);
-    let text = element::Text::new()
+    let text_attr = [
+        ("font-family", font_family),
+        ("font-size", font_size),
+        ("fill", "black"),
+        ("stroke", "white"),
+        ("stroke-width", "0.5px"),
+        ("font-weight", "bold"),
+    ];
+
+    let mut text = element::Text::new()
         .set("x", angle_text_position.x)
-        .set("y", angle_text_position.y)
-        .set("font-family", font_family)
-        .set("font-size", font_size)
-        .set("fill", "black")
-        .add(text_node);
+        .set("y", angle_text_position.y);
+    text = text_attr
+        .iter()
+        .fold(text, |text, (attr, value)| text.set(*attr, *value));
+    text = text.add(node::Text::new(angle));
     document = document.add(text);
 
     // draw points
     let colors = vec!["red", "lime", "blue", "magenta"];
-    let point_radius = "10";
     for (label, color) in LABELS.iter().zip(colors) {
         let point_xy = shape_map[*label];
         let circle = Circle::new()
@@ -274,14 +283,13 @@ pub fn draw(json_data: PointData, background: Option<image::DynamicImage>) -> sv
             .set("cx", point_xy.0)
             .set("cy", point_xy.1)
             .set("r", point_radius);
-        let text_node = node::Text::new(*label);
-        let text = element::Text::new()
+        let mut text = element::Text::new()
             .set("x", point_xy.0)
-            .set("y", point_xy.1)
-            .set("font-family", font_family)
-            .set("font-size", font_size)
-            .set("fill", "black")
-            .add(text_node);
+            .set("y", point_xy.1);
+        text = text_attr
+            .iter()
+            .fold(text, |text, (attr, value)| text.set(*attr, *value));
+        text = text.add(node::Text::new(*label));
         document = document.add(circle).add(text);
     }
     document
@@ -380,5 +388,5 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
             optimal_points.push(right);
         }
     }
-    optimal_points.into_iter().map(|(y,x)| (x,y)).collect()
+    optimal_points.into_iter().map(|(y, x)| (x, y)).collect()
 }
