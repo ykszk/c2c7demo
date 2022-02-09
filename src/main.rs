@@ -14,6 +14,13 @@ use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 use tract_onnx::prelude::*;
 
+#[derive(clap::ArgEnum, Clone, Debug)]
+enum FaceDirection {
+    Left,
+    Right,
+    Auto,
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -29,6 +36,14 @@ struct Args {
     /// Specify once or twice to set log level info or debug repsectively.
     #[clap(short, long, parse(from_occurrences))]
     verbose: usize,
+
+    /// Face direction
+    #[clap(arg_enum, short, long, default_value = "auto")]
+    direction: FaceDirection,
+
+    /// Save preprocessed image.
+    #[clap(long)]
+    preprocessed: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -90,6 +105,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let target_height = 768;
     let (width, height) = original_img.dimensions();
     let img = original_img.grayscale();
+
+    let img = match args.direction {
+        FaceDirection::Left => img,
+        FaceDirection::Right => {
+            info!("Flip input image");
+            match img {
+                DynamicImage::ImageLuma8(i) => {
+                    DynamicImage::ImageLuma8(image::imageops::flip_horizontal(&i))
+                }
+                DynamicImage::ImageLuma16(i) => {
+                    DynamicImage::ImageLuma16(image::imageops::flip_horizontal(&i))
+                }
+                _ => panic!("Invalid image format"),
+            }
+        }
+        FaceDirection::Auto => img,
+    };
     let new_width: u32 = ((width as f64) * (target_height as f64) / (height as f64)).round() as u32;
     debug!("Original image size: {} {}", width, height);
     info!("Resize to w{} h{}", new_width, target_height);
@@ -101,7 +133,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         DynamicImage::ImageLuma16(img) => {
             debug!("input u16 to clahe");
-            clahe(img, 32, 32, 10)?
+            clahe(img, 32, 32, 10000)?
         }
         _ => {
             let hint = ImageFormatHint::Name("u8 or u16 image is expected".to_string());
@@ -109,12 +141,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
+    if let Some(filename) = args.preprocessed {
+        info!("Save preprocessed image {}", filename);
+        img.save(filename).unwrap();
+    }
+
     let pad_width = ((new_width as f64 / 256.0).ceil() * 256.0) as u32;
     let (input_width, input_height) = (pad_width, target_height);
 
     info!("Load model");
     let model = tract_onnx::onnx()
-        .model_for_path("c2c7.onnx")?
+        .model_for_path(args.model)?
         .with_input_fact(
             0,
             InferenceFact::dt_shape(

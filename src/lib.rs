@@ -93,15 +93,19 @@ fn img2base64(img: &image::DynamicImage, png: bool) -> String {
     let mut buf = Vec::new();
     if png {
         img.write_to(&mut buf, image::ImageOutputFormat::Png)
-        .unwrap();
+            .unwrap();
     } else {
         img.write_to(&mut buf, image::ImageOutputFormat::Jpeg(75))
-        .unwrap();
+            .unwrap();
     }
     base64::encode(&buf)
 }
 
-pub fn draw(json_data: PointData, background: Option<image::DynamicImage>, png_bg: bool) -> svg::Document {
+pub fn draw(
+    json_data: PointData,
+    background: Option<image::DynamicImage>,
+    png_bg: bool,
+) -> svg::Document {
     let (image_width, image_height) = (json_data.imageWidth, json_data.imageHeight);
     let shapes = json_data.shapes;
     assert!(shapes.len() >= 4);
@@ -120,7 +124,8 @@ pub fn draw(json_data: PointData, background: Option<image::DynamicImage>, png_b
     // set background
     if let Some(base_img) = background {
         let res_base64 = img2base64(&base_img, png_bg);
-        let b64 = format!("data:image/{};base64,", if png_bg {"png"} else {"jpeg"}) + &res_base64;
+        let b64 =
+            format!("data:image/{};base64,", if png_bg { "png" } else { "jpeg" }) + &res_base64;
         let bg = element::Image::new()
             .set("x", 0i64)
             .set("y", 0i64)
@@ -288,14 +293,15 @@ pub fn draw(json_data: PointData, background: Option<image::DynamicImage>, png_b
             .set("cx", point_xy.0)
             .set("cy", point_xy.1)
             .set("r", point_radius);
-        let mut text = element::Text::new()
-            .set("x", point_xy.0)
-            .set("y", point_xy.1);
-        text = text_attr
-            .iter()
-            .fold(text, |text, (attr, value)| text.set(*attr, *value));
-        text = text.add(node::Text::new(*label));
-        document = document.add(circle).add(text);
+        document = document.add(circle);
+        // let mut text = element::Text::new()
+        //     .set("x", point_xy.0)
+        //     .set("y", point_xy.1);
+        // text = text_attr
+        //     .iter()
+        //     .fold(text, |text, (attr, value)| text.set(*attr, *value));
+        // text = text.add(node::Text::new(*label));
+        // document = document.add(text);
     }
     document
 }
