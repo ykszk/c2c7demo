@@ -168,7 +168,7 @@ pub fn draw(
     );
     for line in [c2_line, c7_line] {
         let v = &line.vector;
-        let (int1, int2) = if (v.y / v.x) > 0.5 {
+        let (int1, int2) = if (v.y / v.x).abs() > 0.5 {
             (
                 line.intersection(&top_line).unwrap(),
                 line.intersection(&bottom_line).unwrap(),
@@ -187,9 +187,14 @@ pub fn draw(
         group = group.add(line);
     }
     let angle_degree = c2_line.vector.angle_to(c7_line.vector).to_degrees();
+    let angle_degree = if points[0].0 > points[1].0 {
+        // facing right
+        -angle_degree
+    } else {
+        // facing left
+        angle_degree
+    };
     let intersect = c2_line.intersection(&c7_line).unwrap();
-    let sign = if intersect.x > points[0].0 { 1.0 } else { -1.0 };
-    let angle_degree = sign * angle_degree;
     let angle = format!("{:.1}°", angle_degree);
     debug!("angle {}", angle);
 
@@ -203,10 +208,10 @@ pub fn draw(
         let p = lyon_geom::Point::new(points[1].0, points[1].1);
         let aux_c2 = p + (p - a) / 2.0;
         let t_origin = lyon_geom::Transform::translation(-intersect.x, -intersect.y);
-        let mut rog_angle = c2_line.vector.angle_to(c7_line.vector);
-        rog_angle.radians /= 2.0;
+        let mut rot_angle = c2_line.vector.angle_to(c7_line.vector);
+        rot_angle.radians /= 2.0;
         let t = t_origin
-            .then_rotate(rog_angle)
+            .then_rotate(rot_angle)
             .then_translate(lyon_geom::Vector::new(intersect.x, intersect.y));
         let aux_int = t.transform_point(aux_c2);
         debug!("Aux intersection {:?}", aux_int);
