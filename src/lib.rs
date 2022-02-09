@@ -89,14 +89,19 @@ impl PointData {
     }
 }
 
-fn img2base64(img: &image::DynamicImage) -> String {
+fn img2base64(img: &image::DynamicImage, png: bool) -> String {
     let mut buf = Vec::new();
-    img.write_to(&mut buf, image::ImageOutputFormat::Png)
+    if png {
+        img.write_to(&mut buf, image::ImageOutputFormat::Png)
         .unwrap();
+    } else {
+        img.write_to(&mut buf, image::ImageOutputFormat::Jpeg(75))
+        .unwrap();
+    }
     base64::encode(&buf)
 }
 
-pub fn draw(json_data: PointData, background: Option<image::DynamicImage>) -> svg::Document {
+pub fn draw(json_data: PointData, background: Option<image::DynamicImage>, png_bg: bool) -> svg::Document {
     let (image_width, image_height) = (json_data.imageWidth, json_data.imageHeight);
     let shapes = json_data.shapes;
     assert!(shapes.len() >= 4);
@@ -114,8 +119,8 @@ pub fn draw(json_data: PointData, background: Option<image::DynamicImage>) -> sv
 
     // set background
     if let Some(base_img) = background {
-        let res_base64 = img2base64(&base_img);
-        let b64 = "data:image/png;base64,".to_owned() + &res_base64;
+        let res_base64 = img2base64(&base_img, png_bg);
+        let b64 = format!("data:image/{};base64,", if png_bg {"png"} else {"jpeg"}) + &res_base64;
         let bg = element::Image::new()
             .set("x", 0i64)
             .set("y", 0i64)

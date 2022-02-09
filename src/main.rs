@@ -175,13 +175,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map(|p| (*p as f32 / max_value * 255.0).round() as u8)
                 .collect();
             Some(DynamicImage::ImageLuma8(
-                image::ImageBuffer::from_vec(img_width, img_height, buf).unwrap(),
+                image::ImageBuffer::from_vec(img.dimensions().0, img.dimensions().1, buf).unwrap(),
             ))
         }
         _ => None,
     };
-    let document = draw(data, background);
-    if args.output.ends_with(".svg") {
+    let svg_output = args.output.ends_with(".svg");
+    let document = draw(data, background, !svg_output);
+    if svg_output {
         debug!("Save SVG");
         svg::save(args.output, &document).unwrap();
     } else {
