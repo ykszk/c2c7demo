@@ -2,7 +2,7 @@ use std::fs::{self, File};
 use std::io::Read;
 #[macro_use]
 extern crate log;
-use env_logger::{Builder, Env};
+use env_logger::Env;
 use tract_onnx::prelude::tract_ndarray as ndarray;
 
 use c2c7demo::{extract_points, PointData, LABELS};
@@ -18,41 +18,26 @@ struct Cli {
     command: Commands,
 }
 
+#[derive(clap::Args)]
+struct DefaultArgs {
+    /// Input filename
+    input: String,
+
+    /// Input shape. e.g. "6,768,768"
+    shape: String,
+
+    /// Output filename
+    output: String,
+}
+
 #[derive(Subcommand)]
 enum Commands {
     /// Extract peak points from heatmaps
-    Peak {
-        /// Input filename
-        input: String,
-
-        /// Input shape. e.g. "6,768,768"
-        shape: String,
-
-        /// Output filename
-        output: String,
-    },
+    Peak(DefaultArgs),
     /// Convert raw heatmap to RGB image
-    Heatmap {
-        /// Input filename
-        input: String,
-
-        /// Input shape. e.g. "6,768,768"
-        shape: String,
-
-        /// Output filename
-        output: String,
-    },
+    Heatmap(DefaultArgs),
     /// Extract affinity map
-    Affinity {
-        /// Input filename
-        input: String,
-
-        /// Input shape. e.g. "6,768,768"
-        shape: String,
-
-        /// Output filename
-        output: String,
-    },
+    Affinity(DefaultArgs),
 }
 
 type Shape3D = (usize, usize, usize);
@@ -82,16 +67,14 @@ fn load_raw(filename: &str, shape: &Shape3D) -> ndarray::Array3<u8> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env = Env::default().filter_or("LOG_LEVEL", "debug");
-    Builder::from_env(env)
-        .format_timestamp(Some(env_logger::TimestampPrecision::Seconds))
-        .init();
+    env_logger::init_from_env(env);
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Peak {
+        Commands::Peak(DefaultArgs {
             input,
             shape,
             output,
-        } => {
+        }) => {
             let filename = input;
             let shape = parse_shape(shape);
             let (_chs, height, width) = shape;
@@ -103,22 +86,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let data = PointData::new(&optimal_points, &labels, width, height, "");
             data.save(output)?;
         }
-        Commands::Heatmap {
+        Commands::Heatmap(DefaultArgs {
             input,
             shape,
             output,
-        } => {
+        }) => {
             let filename = input;
             let shape = parse_shape(shape);
             let arr = load_raw(filename, &shape);
             let img = c2c7demo::extract_heatmap(&arr)?;
             img.save(output).unwrap();
         }
-        Commands::Affinity {
+        Commands::Affinity(DefaultArgs {
             input,
             shape,
             output,
-        } => {
+        }) => {
             let filename = input;
             let shape = parse_shape(shape);
             let arr = load_raw(filename, &shape);

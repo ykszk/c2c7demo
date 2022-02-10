@@ -6,6 +6,10 @@ extern crate log;
 use svg::node;
 use svg::node::element::{self, Circle};
 
+use imageproc::region_labelling::{connected_components, Connectivity};
+use tract_onnx::prelude::tract_ndarray as ndarray;
+use tract_onnx::prelude::tract_ndarray::{s, Axis};
+
 pub type Point = (f32, f32);
 pub const LABELS: [&str; 4] = ["C2A", "C2P", "C7A", "C7P"];
 
@@ -315,9 +319,7 @@ pub fn draw(
     document
 }
 
-use imageproc::region_labelling::{connected_components, Connectivity};
-use tract_onnx::prelude::tract_ndarray::{self, s, Axis};
-pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
+pub fn extract_points(arr: &ndarray::Array3<u8>) -> Vec<Point> {
     let height = arr.shape()[1];
     let width = arr.shape()[2];
     let ch_axis = Axis(0);
@@ -411,8 +413,6 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
     }
     optimal_points.into_iter().map(|(y, x)| (x, y)).collect()
 }
-
-use tract_onnx::prelude::tract_ndarray as ndarray;
 
 pub fn extract_heatmap(
     arr: &ndarray::Array3<u8>,
