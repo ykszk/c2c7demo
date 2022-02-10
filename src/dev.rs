@@ -28,7 +28,7 @@ enum Commands {
         /// Input shape. e.g. "6,768,768"
         shape: String,
 
-        /// Input filename
+        /// Output filename
         output: String,
     },
     /// Convert raw heatmap to RGB image
@@ -39,7 +39,7 @@ enum Commands {
         /// Input shape. e.g. "6,768,768"
         shape: String,
 
-        /// Input filename
+        /// Output filename
         output: String,
     },
     /// Extract affinity map
@@ -50,7 +50,7 @@ enum Commands {
         /// Input shape. e.g. "6,768,768"
         shape: String,
 
-        /// Input filename
+        /// Output filename
         output: String,
     },
 }
@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let filename = input;
             let shape = parse_shape(shape);
             let arr = load_raw(filename, &shape);
-            let img = c2c7demo::extract_heatmap(&arr);
+            let img = c2c7demo::extract_heatmap(&arr)?;
             img.save(output).unwrap();
         }
         Commands::Affinity {
@@ -122,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let filename = input;
             let shape = parse_shape(shape);
             let arr = load_raw(filename, &shape);
-            let img = c2c7demo::extract_affinity(&arr);
+            let img = c2c7demo::extract_affinity(&arr)?;
             img.save(output).unwrap();
         }
     }

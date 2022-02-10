@@ -414,9 +414,13 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
 
 use tract_onnx::prelude::tract_ndarray as ndarray;
 
-pub fn extract_heatmap(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
+pub fn extract_heatmap(
+    arr: &ndarray::Array3<u8>,
+) -> Result<image::RgbaImage, Box<dyn std::error::Error>> {
     let (chs, height, width) = (arr.shape()[0], arr.shape()[1], arr.shape()[2]);
-    assert_eq!(chs, 6);
+    if chs != 0 {
+        return Err(ndarray::ShapeError::from_kind(ndarray::ErrorKind::IncompatibleShape).into());
+    }
     let channel_last_shape = (height, width, chs);
     let channel_last: ndarray::Array3<u8> = ndarray::Array3::from_shape_vec(
         channel_last_shape,
@@ -425,11 +429,9 @@ pub fn extract_heatmap(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
             .iter()
             .cloned()
             .collect(),
-    )
-    .unwrap();
+    )?;
     let rows: Vec<u8> = channel_last
-        .into_shape((width * height, 6))
-        .unwrap()
+        .to_shape((width * height, 6))?
         .rows()
         .into_iter()
         .flat_map(|row| {
@@ -440,12 +442,17 @@ pub fn extract_heatmap(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
             [r, g, b, alpha]
         })
         .collect();
-    image::RgbaImage::from_raw(width as _, height as _, rows).unwrap()
+    image::RgbaImage::from_raw(width as _, height as _, rows)
+        .ok_or_else(|| "Failed to convert to RGBA image".into())
 }
 
-pub fn extract_affinity(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
+pub fn extract_affinity(
+    arr: &ndarray::Array3<u8>,
+) -> Result<image::RgbaImage, Box<dyn std::error::Error>> {
     let (chs, height, width) = (arr.shape()[0], arr.shape()[1], arr.shape()[2]);
-    assert_eq!(chs, 6);
+    if chs != 0 {
+        return Err(ndarray::ShapeError::from_kind(ndarray::ErrorKind::IncompatibleShape).into());
+    }
     let channel_last_shape = (height, width, chs);
     let channel_last: ndarray::Array3<u8> = ndarray::Array3::from_shape_vec(
         channel_last_shape,
@@ -454,11 +461,9 @@ pub fn extract_affinity(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
             .iter()
             .cloned()
             .collect(),
-    )
-    .unwrap();
+    )?;
     let rows: Vec<u8> = channel_last
-        .into_shape((width * height, 6))
-        .unwrap()
+        .to_shape((width * height, 6))?
         .rows()
         .into_iter()
         .flat_map(|row| {
@@ -467,5 +472,6 @@ pub fn extract_affinity(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
             [r, g, 0, alpha]
         })
         .collect();
-    image::RgbaImage::from_raw(width as _, height as _, rows).unwrap()
+    image::RgbaImage::from_raw(width as _, height as _, rows)
+        .ok_or_else(|| "Failed to convert to RGBA image".into())
 }

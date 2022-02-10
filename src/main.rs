@@ -269,7 +269,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(filename) = args.heatmap {
         info!("Save heatmap {}", filename);
-        c2c7demo::extract_heatmap(&arr3).save(filename).unwrap();
+        c2c7demo::extract_heatmap(&arr3)?.save(filename).unwrap();
     }
 
     let optimal_points = extract_points(&arr3);
