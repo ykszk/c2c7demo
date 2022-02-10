@@ -12,8 +12,8 @@ name = "c2c7angle"
 path = "src/main.rs"
 
 [[bin]]
-name = "peak"
-path = "src/peak.rs"
+name = "dev"
+path = "src/dev.rs"
 
 [[bin]]
 name = "draw"
