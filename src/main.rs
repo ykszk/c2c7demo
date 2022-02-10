@@ -44,6 +44,14 @@ struct Args {
     /// Save preprocessed image.
     #[clap(long)]
     preprocessed: Option<String>,
+
+    /// Save anatomical point coordinates in json.
+    #[clap(long)]
+    json: Option<String>,
+
+    /// No background (input image) for the output
+    #[clap(short, long)]
+    no_background: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -217,7 +225,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map(|output3| {
                     let maxes: Vec<f32> = output3
                         .axis_iter(tract_ndarray::Axis(0))
-                        .map(|output2| output2.fold(0f32, |acc, v| f32::max(acc, *v)))
+                        .map(|output2| output2.fold(f32::MIN, |acc, v| f32::max(acc, *v)))
                         .collect();
                     maxes
                 })
@@ -225,7 +233,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             debug!("All scores {:?}", v_maxes);
             let mins: Vec<f32> = v_maxes
                 .iter()
-                .map(|v| v.iter().fold(10.0, |acc, v| f32::min(acc, *v)))
+                .map(|v| v.iter().fold(f32::MAX, |acc, v| f32::min(acc, *v)))
                 .collect();
             debug!("Scores per batch {:?}", mins);
             assert!(mins.len() == 2);
@@ -265,19 +273,28 @@ fn main() -> Result<(), Box<dyn Error>> {
         img_height as _,
         "",
     );
-    let background = match resized_img {
-        DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
-        DynamicImage::ImageLuma16(img) => {
-            let max_value = *img.iter().max().unwrap() as f32;
-            let buf: Vec<u8> = img
-                .iter()
-                .map(|p| (*p as f32 / max_value * 255.0).round() as u8)
-                .collect();
-            Some(DynamicImage::ImageLuma8(
-                image::ImageBuffer::from_vec(img.dimensions().0, img.dimensions().1, buf).unwrap(),
-            ))
+    if let Some(filename) = args.json {
+        info!("Save json {}", filename);
+        data.save(&filename).unwrap();
+    };
+    let background = if args.no_background {
+        None
+    } else {
+        match resized_img {
+            DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
+            DynamicImage::ImageLuma16(img) => {
+                let max_value = *img.iter().max().unwrap() as f32;
+                let buf: Vec<u8> = img
+                    .iter()
+                    .map(|p| (*p as f32 / max_value * 255.0).round() as u8)
+                    .collect();
+                Some(DynamicImage::ImageLuma8(
+                    image::ImageBuffer::from_vec(img.dimensions().0, img.dimensions().1, buf)
+                        .unwrap(),
+                ))
+            }
+            _ => None,
         }
-        _ => None,
     };
     let svg_output = args.output.ends_with(".svg");
     let document = draw(data, background, !svg_output);
