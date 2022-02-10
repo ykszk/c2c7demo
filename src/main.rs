@@ -12,6 +12,7 @@ use env_logger::{Builder, Env};
 use image::error::{ImageFormatHint, UnsupportedError};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
+use tract_onnx::prelude::tract_ndarray as ndarray;
 use tract_onnx::prelude::*;
 
 #[derive(clap::ArgEnum, Clone, Debug)]
@@ -120,13 +121,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let target_height = 768;
     let (width, height) = original_img.dimensions();
-    let img = original_img.grayscale();
+    let gray_img = original_img.grayscale();
 
-    let img = match args.direction {
-        FaceDirection::Left => img,
+    let gray_img = match args.direction {
+        FaceDirection::Left => gray_img,
         FaceDirection::Right => {
             info!("Flip input image");
-            match img {
+            match gray_img {
                 DynamicImage::ImageLuma8(i) => {
                     DynamicImage::ImageLuma8(image::imageops::flip_horizontal(&i))
                 }
@@ -136,12 +137,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 _ => panic!("Invalid image format"),
             }
         }
-        FaceDirection::Auto => img,
+        FaceDirection::Auto => gray_img,
     };
     let new_width: u32 = ((width as f64) * (target_height as f64) / (height as f64)).round() as u32;
     debug!("Original image size: {} {}", width, height);
     info!("Resize to w{} h{}", new_width, target_height);
-    let resized_img = img.resize_exact(new_width, target_height, FilterType::Triangle);
+    let resized_img = gray_img.resize_exact(new_width, target_height, FilterType::Triangle);
     let img = match &resized_img {
         DynamicImage::ImageLuma8(img) => {
             debug!("input u8 to clahe");
@@ -185,7 +186,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input_tensor: Tensor = match args.direction {
         FaceDirection::Auto => {
             info!("Face direction Auto");
-            tract_ndarray::Array4::from_shape_fn(
+            ndarray::Array4::from_shape_fn(
                 (2, 1, input_height as usize, input_width as usize),
                 |(lr, c, y, x)| {
                     if img.in_bounds(x as _, y as _) {
@@ -203,7 +204,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
             .into()
         }
-        _ => tract_ndarray::Array4::from_shape_fn(
+        _ => ndarray::Array4::from_shape_fn(
             (1, 1, input_height as usize, input_width as usize),
             |(_, c, y, x)| {
                 if img.in_bounds(x as _, y as _) {
@@ -222,17 +223,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let result = model.run(tvec!(input_tensor))?;
     debug!("Output shape {:?}", result[0].shape());
     let (img_width, img_height) = img.dimensions();
-    let arr4: tract_ndarray::ArrayView4<f32> = result[0]
+    let arr4: ndarray::ArrayView4<f32> = result[0]
         .to_array_view::<f32>()?
         .into_dimensionality()
         .unwrap();
     let best_batch: usize = match args.direction {
         FaceDirection::Auto => {
             let v_maxes: Vec<Vec<f32>> = arr4
-                .axis_iter(tract_ndarray::Axis(0))
+                .axis_iter(ndarray::Axis(0))
                 .map(|output3| {
                     let maxes: Vec<f32> = output3
-                        .axis_iter(tract_ndarray::Axis(0))
+                        .axis_iter(ndarray::Axis(0))
                         .map(|output2| output2.fold(f32::MIN, |acc, v| f32::max(acc, *v)))
                         .collect();
                     maxes
@@ -254,7 +255,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let flip_needed = best_batch != 0;
 
     let arr3 = arr4
-        .slice(tract_ndarray::s![
+        .slice(ndarray::s![
             best_batch,
             ..,
             0..img_height as usize,
@@ -298,7 +299,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let background = if args.no_background {
         None
     } else {
-        match resized_img {
+        match gray_img {
             DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
             DynamicImage::ImageLuma16(img) => {
                 let max_value = *img.iter().max().unwrap() as f32;

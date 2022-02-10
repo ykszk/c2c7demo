@@ -123,7 +123,8 @@ pub fn draw(
     let mut document = svg::Document::new()
         .set("width", image_width)
         .set("height", image_height)
-        .set("viewBox", (0i64, 0i64, image_width, image_height));
+        .set("viewBox", (0i64, 0i64, image_width, image_height))
+        .set("xmlns:xlink", "http://www.w3.org/1999/xlink");
 
     // set background
     if let Some(base_img) = background {
@@ -135,7 +136,7 @@ pub fn draw(
             .set("y", 0i64)
             .set("width", image_width)
             .set("height", image_height)
-            .set("href", b64);
+            .set("xlink:href", b64);
         document = document.add(bg);
     }
 
