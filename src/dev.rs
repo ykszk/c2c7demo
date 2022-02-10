@@ -42,13 +42,24 @@ enum Commands {
         /// Input filename
         output: String,
     },
+    /// Extract affinity map
+    Affinity {
+        /// Input filename
+        input: String,
+
+        /// Input shape. e.g. "6,768,768"
+        shape: String,
+
+        /// Input filename
+        output: String,
+    },
 }
 
 type Shape3D = (usize, usize, usize);
 
 fn parse_shape(shape: &str) -> Shape3D {
     let shape: Vec<usize> = shape
-        .split(",")
+        .split(',')
         .map(|s| s.parse::<usize>().unwrap())
         .collect();
     assert_eq!(shape.len(), 3);
@@ -99,21 +110,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let filename = input;
             let shape = parse_shape(shape);
-            let (_chs, height, width) = shape;
             let arr = load_raw(filename, &shape);
-            debug!("array shape: {:?}", arr.shape());
-            let channel_last = arr.permuted_axes([1, 2, 0]);
-            let rgba = channel_last.map_axis(ndarray::Axis(2), |p| p);
-            // let img = image::RgbImage::from_raw(width as _, height as _, rgba.as_slice().unwrap());
-            //new(width as _, height as _);
-            // le t
-            // let ch_axis = ndarray::Axis(0);
-            // for (i_ch, img_ch) in arr.axis_iter(ch_axis).enumerate() {
-            //     if i_ch > 3 {
-            //         break;
-            //     }
-            // }
-            // img.save(output).unwrap();
+            let img = c2c7demo::extract_heatmap(&arr);
+            img.save(output).unwrap();
+        }
+        Commands::Affinity {
+            input,
+            shape,
+            output,
+        } => {
+            let filename = input;
+            let shape = parse_shape(shape);
+            let arr = load_raw(filename, &shape);
+            let img = c2c7demo::extract_affinity(&arr);
+            img.save(output).unwrap();
         }
     }
     Ok(())

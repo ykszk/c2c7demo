@@ -45,11 +45,19 @@ struct Args {
     #[clap(long)]
     preprocessed: Option<String>,
 
+    /// Save raw output (3D array with shape [6, H, W]).
+    #[clap(long)]
+    raw: Option<String>,
+
+    /// Save heatmap image.
+    #[clap(long)]
+    heatmap: Option<String>,
+
     /// Save anatomical point coordinates in json.
     #[clap(long)]
     json: Option<String>,
 
-    /// No background (input image) for the output
+    /// No background (input image) for the output.
     #[clap(short, long)]
     no_background: bool,
 }
@@ -253,6 +261,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             0..img_width as usize
         ])
         .map(|v| (v * 255.0) as u8);
+
+    if let Some(filename) = args.raw {
+        info!("Save raw output with shape {:?} {}", arr3.shape(), filename);
+        std::fs::write(&filename, arr3.as_slice().unwrap()).unwrap();
+    }
+
+    if let Some(filename) = args.heatmap {
+        info!("Save heatmap {}", filename);
+        c2c7demo::extract_heatmap(&arr3).save(filename).unwrap();
+    }
 
     let optimal_points = extract_points(&arr3);
     let optimal_points = if flip_needed {

@@ -411,3 +411,61 @@ pub fn extract_points(arr: &tract_ndarray::Array3<u8>) -> Vec<Point> {
     }
     optimal_points.into_iter().map(|(y, x)| (x, y)).collect()
 }
+
+use tract_onnx::prelude::tract_ndarray as ndarray;
+
+pub fn extract_heatmap(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
+    let (chs, height, width) = (arr.shape()[0], arr.shape()[1], arr.shape()[2]);
+    assert_eq!(chs, 6);
+    let channel_last_shape = (height, width, chs);
+    let channel_last: ndarray::Array3<u8> = ndarray::Array3::from_shape_vec(
+        channel_last_shape,
+        arr.view()
+            .permuted_axes([1, 2, 0])
+            .iter()
+            .cloned()
+            .collect(),
+    )
+    .unwrap();
+    let rows: Vec<u8> = channel_last
+        .into_shape((width * height, 6))
+        .unwrap()
+        .rows()
+        .into_iter()
+        .flat_map(|row| {
+            let (mut r, g, mut b) = (row[0], row[1], row[2]);
+            r += row[3];
+            b += row[3];
+            let alpha = u8::max(u8::max(r, g), b);
+            [r, g, b, alpha]
+        })
+        .collect();
+    image::RgbaImage::from_raw(width as _, height as _, rows).unwrap()
+}
+
+pub fn extract_affinity(arr: &ndarray::Array3<u8>) -> image::RgbaImage {
+    let (chs, height, width) = (arr.shape()[0], arr.shape()[1], arr.shape()[2]);
+    assert_eq!(chs, 6);
+    let channel_last_shape = (height, width, chs);
+    let channel_last: ndarray::Array3<u8> = ndarray::Array3::from_shape_vec(
+        channel_last_shape,
+        arr.view()
+            .permuted_axes([1, 2, 0])
+            .iter()
+            .cloned()
+            .collect(),
+    )
+    .unwrap();
+    let rows: Vec<u8> = channel_last
+        .into_shape((width * height, 6))
+        .unwrap()
+        .rows()
+        .into_iter()
+        .flat_map(|row| {
+            let (r, g) = (row[4], row[5]);
+            let alpha = u8::max(r, g);
+            [r, g, 0, alpha]
+        })
+        .collect();
+    image::RgbaImage::from_raw(width as _, height as _, rows).unwrap()
+}
