@@ -476,3 +476,17 @@ pub fn extract_affinity(
     image::RgbaImage::from_raw(width as _, height as _, rows)
         .ok_or_else(|| "Failed to convert to RGBA image".into())
 }
+
+extern crate wasm_bindgen;
+
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+extern {
+    pub fn alert(s: &str);
+}
+
+#[wasm_bindgen]
+pub fn greet(name: &str) {
+    alert(&format!("Hello, {}!", name));
+}
