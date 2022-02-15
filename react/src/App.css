@@ -1,19 +1,5 @@
 .App {
   text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
   background-color: #282c34;
   min-height: 100vh;
   display: flex;
@@ -24,15 +10,71 @@
   color: white;
 }
 
-.App-link {
-  color: #61dafb;
+div.main {
+  display: flex;
+  flex-direction: row;
+  width: 100vw;
+  justify-content: center;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+div.buttons {
+  display: flex;
+  flex-direction: column;
+}
+
+div.buttons>* {
+  align-self: baseline;
+}
+
+@media screen and (max-width: 960px) {
+  div.main {
+    flex-direction: column;
   }
-  to {
-    transform: rotate(360deg);
+
+  div.buttons {
+    flex-direction: row;
   }
+}
+
+div.main>div {
+  align-self: center;
+}
+
+.dropzone {
+  cursor: pointer;
+}
+
+.dropzone:hover {
+  background-color: #00000022;
+
+}
+
+div.overlay {
+  position: relative;
+}
+
+img {
+  max-width: min(512px, 100vw);
+  max-height: min(512px, 100vw);
+}
+
+img.fg {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+h3 {
+  font-size: 24px;
+  padding: .5em;
+  margin: 0;
+}
+
+label {
+  font-size: 12px;
+}
+
+div.buttons>* {
+  display: block;
+  margin: .5em;
 }
