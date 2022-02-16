@@ -42,6 +42,8 @@ div.main>div {
 
 .dropzone {
   cursor: pointer;
+  width: 95vw;
+  padding: .5em;
 }
 
 .dropzone:hover {

@@ -43,3 +43,5 @@ tiny-skia = { version = "0", default-features = false }
 base64 = { version = "0", default-features = false }
 lyon_geom = { version = "0", default-features = false }
 wasm-bindgen = "0.2"
+wasm-logger = "0"
+js-sys = "0.3"
