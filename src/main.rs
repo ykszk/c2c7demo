@@ -6,12 +6,10 @@ extern crate log;
 use c2c7demo::{draw, extract_points, PointData, LABELS};
 use clahe::clahe;
 use clap::Parser;
-use dicom::dictionary_std;
-use dicom::object::open_file;
 use env_logger::{Builder, Env};
 use image::error::{ImageFormatHint, UnsupportedError};
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageBuffer};
+use image::{DynamicImage, GenericImageView};
 use tract_onnx::prelude::tract_ndarray as ndarray;
 use tract_onnx::prelude::*;
 
@@ -63,6 +61,15 @@ struct Args {
     no_background: bool,
 }
 
+fn load_dicom(filename: &str) -> Result<image::DynamicImage, Box<dyn Error>> {
+    use std::fs::File;
+    use std::io::Read;
+    let mut f = File::open(filename)?;
+    let mut bytes: Vec<u8> = Vec::new();
+    f.read_to_end(&mut bytes)?;
+    c2c7demo::load_dicom_from_u8(&bytes)
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
@@ -88,33 +95,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     info!("Open {}", args.input);
     let original_img = if try_dicom {
         info!("Open as dicom");
-        let obj = open_file(&args.input);
-        if let Ok(obj) = obj {
-            let pixel_representation: u8 = obj.element_by_name("PixelRepresentation")?.to_int()?;
-            let bits_allocated: u8 = obj.element_by_name("BitsAllocated")?.to_int()?;
-            let bits_stored: u8 = obj.element_by_name("BitsStored")?.to_int()?;
-            debug!(
-                "pixel representation {}, bits_stored {}",
-                pixel_representation, bits_stored
-            );
-            // let compression: u8 = obj.element_by_name("LossyImageCompression")?.to_int()?;
-            assert_eq!(bits_allocated, 16, "Not a 16bit dicom");
-            let width: u32 = obj.element(dictionary_std::tags::COLUMNS)?.to_int()?;
-            let height: u32 = obj.element(dictionary_std::tags::ROWS)?.to_int()?;
-
-            let pixel_data_bytes = obj.element(dicom::core::Tag(0x7FE0, 0x0010))?.to_bytes()?;
-
-            type PixelType = u16;
-            let pixels: Vec<PixelType> =
-                unsafe { (pixel_data_bytes.into_owned().align_to::<PixelType>().1).to_vec() };
-            let pixels_u16: Vec<u16> = pixels.into_iter().collect();
-            type OutputPixelType = u16;
-            let buf: ImageBuffer<image::Luma<OutputPixelType>, Vec<OutputPixelType>> =
-                ImageBuffer::from_raw(width, height, pixels_u16).unwrap();
-            DynamicImage::ImageLuma16(buf)
-        } else {
-            info!("Failed to open as a dicom. Falling back to regular format.");
-            image::open(&args.input).unwrap()
+        let dicom_img = load_dicom(&args.input);
+        match dicom_img {
+            Ok(img) => img,
+            Err(e) => {
+                debug!("{:?}", e.to_string());
+                image::open(&args.input).unwrap()
+            }
         }
     } else {
         image::open(&args.input).unwrap()
@@ -228,9 +215,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .into_dimensionality()
         .unwrap();
     let best_batch: usize = match args.direction {
-        FaceDirection::Auto => {
-            c2c7demo::choose_best_batch(&arr4) as _
-        }
+        FaceDirection::Auto => c2c7demo::choose_best_batch(&arr4) as _,
         _ => 0,
     };
     let flip_needed = best_batch != 0;
@@ -277,22 +262,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         info!("Save json {}", filename);
         data.save(&filename).unwrap();
     };
+
     let background = if args.no_background {
         None
     } else {
         match gray_img {
             DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
-            DynamicImage::ImageLuma16(img) => {
-                let max_value = *img.iter().max().unwrap() as f32;
-                let buf: Vec<u8> = img
-                    .iter()
-                    .map(|p| (*p as f32 / max_value * 255.0).round() as u8)
-                    .collect();
-                Some(DynamicImage::ImageLuma8(
-                    image::ImageBuffer::from_vec(img.dimensions().0, img.dimensions().1, buf)
-                        .unwrap(),
-                ))
-            }
+            DynamicImage::ImageLuma16(img) => Some(c2c7demo::luma8toluma16(&img)),
             _ => None,
         }
     };

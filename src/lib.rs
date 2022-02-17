@@ -415,6 +415,49 @@ pub fn extract_points(arr: &ndarray::Array3<u8>) -> Vec<Point> {
     optimal_points.into_iter().map(|(y, x)| (x, y)).collect()
 }
 
+use dicom::dictionary_std;
+use image::imageops::FilterType;
+use image::{DynamicImage, GenericImageView, ImageBuffer};
+
+pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn std::error::Error>> {
+    assert!(bytes.len() > 128);
+    let wo_preamble = &bytes[128..]; // skip preamble
+    let obj = dicom::object::from_reader(wo_preamble)?;
+    let pixel_representation: u8 = obj.element_by_name("PixelRepresentation")?.to_int()?;
+    let bits_allocated: u8 = obj.element_by_name("BitsAllocated")?.to_int()?;
+    let bits_stored: u8 = obj.element_by_name("BitsStored")?.to_int()?;
+    debug!(
+        "pixel representation {}, bits_stored {}",
+        pixel_representation, bits_stored
+    );
+    // let compression: u8 = obj.element_by_name("LossyImageCompression")?.to_int()?;
+    assert_eq!(bits_allocated, 16, "Not a 16bit dicom");
+    let width: u32 = obj.element(dictionary_std::tags::COLUMNS)?.to_int()?;
+    let height: u32 = obj.element(dictionary_std::tags::ROWS)?.to_int()?;
+
+    let pixel_data_bytes = obj.element(dicom::core::Tag(0x7FE0, 0x0010))?.to_bytes()?;
+
+    type PixelType = u16;
+    let pixels: Vec<PixelType> =
+        unsafe { (pixel_data_bytes.into_owned().align_to::<PixelType>().1).to_vec() };
+    let pixels_u16: Vec<u16> = pixels.into_iter().collect();
+    type OutputPixelType = u16;
+    let buf: ImageBuffer<image::Luma<OutputPixelType>, Vec<OutputPixelType>> =
+        ImageBuffer::from_raw(width, height, pixels_u16).unwrap();
+    Ok(DynamicImage::ImageLuma16(buf))
+}
+
+pub fn luma8toluma16(img: &image::ImageBuffer<image::Luma<u16>, Vec<u16>>) -> image::DynamicImage {
+    let max_value = *img.iter().max().unwrap() as f32;
+    let buf: Vec<u8> = img
+        .iter()
+        .map(|p| (*p as f32 / max_value * 255.0).round() as u8)
+        .collect();
+    image::DynamicImage::ImageLuma8(
+        image::ImageBuffer::from_vec(img.dimensions().0, img.dimensions().1, buf).unwrap(),
+    )
+}
+
 pub fn extract_heatmap(
     arr: &ndarray::Array3<u8>,
 ) -> Result<image::RgbaImage, Box<dyn std::error::Error>> {
@@ -553,9 +596,6 @@ pub fn decode_image(encoded: &[u8], filename: &str) -> Result<ImageB64, JsValue>
 
 #[wasm_bindgen]
 pub fn preprocess_image(encoded: &[u8], filename: &str) -> Result<String, JsValue> {
-    use image::error::{ImageFormatHint, UnsupportedError};
-    use image::imageops::FilterType;
-    use image::{DynamicImage, GenericImageView, ImageBuffer};
     let filename = Path::new(filename);
     let original_img =
         image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
@@ -587,14 +627,6 @@ pub fn preprocess_image(encoded: &[u8], filename: &str) -> Result<String, JsValu
 
 const TARGET_HEIGHT: usize = 768;
 
-#[wasm_bindgen]
-pub struct Dims {
-    pub b: usize,
-    pub c: usize,
-    pub h: usize,
-    pub w: usize,
-}
-
 fn calc_resized_width(original_width: u32, original_height: u32) -> u32 {
     ((original_width as f64) * (TARGET_HEIGHT as f64) / (original_height as f64)).round() as u32
 }
@@ -615,9 +647,6 @@ pub fn create_input_tensor(
     encoded: &[u8],
     filename: &str,
 ) -> Result<js_sys::Float32Array, JsValue> {
-    use image::error::{ImageFormatHint, UnsupportedError};
-    use image::imageops::FilterType;
-    use image::{DynamicImage, GenericImageView, ImageBuffer};
     let filename = Path::new(filename);
     let original_img =
         image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
@@ -661,8 +690,7 @@ pub fn create_input_tensor(
             } else {
                 0.0
             }
-        })
-        .into();
+        });
     debug!("Input shape {:?}", input_tensor.shape());
     let v = input_tensor.into_raw_vec();
     Ok(js_sys::Float32Array::from(&v[..]))

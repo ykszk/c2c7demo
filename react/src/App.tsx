@@ -74,8 +74,8 @@ function App() {
       }
     }
   }
-  let blob = new Blob([fgSrc], { type: 'image/svg+xml' });
-  let fgURL = URL.createObjectURL(blob);
+  const blob = new Blob([fgSrc], { type: 'image/svg+xml' });
+  const fgURL = URL.createObjectURL(blob);
   return (
     <div className="App">
       {
