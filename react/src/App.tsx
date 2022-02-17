@@ -52,8 +52,10 @@ function App() {
       console.log("wasm loaded.")
     })
   }, [])
+
   const [inputImage, setInputImage] = useState(ImageFile.default());
   const [errMessage, setErrMessage] = useState("");
+  const [onnxModel, setOnnxModel] = useState(new ArrayBuffer(0));
   const [measureDisabled, setMeasureDisabled] = useState(false);
   const [fgSrc, setFgSrc] = useState("");
   const processImage = async (file: File) => {
@@ -79,6 +81,30 @@ function App() {
   const reset_button = (
     <button title="Restart from the start" onClick={() => { setInputImage(ImageFile.default()); setFgSrc(""); setErrMessage(""); setMeasureDisabled(false) }}>Reset</button>
   )
+
+  function run_model(model: ArrayBuffer) {
+    console.log('Create onnx session');
+    ort.InferenceSession.create(
+      model,
+      {
+        executionProviders: ["webgl"], graphOptimizationLevel: 'all'
+      }
+    ).then(session => {
+      const tensor_raw = create_input_tensor(inputImage.arr as Uint8Array);
+      const tensor_width = calc_tensor_width(inputImage.width, inputImage.height);
+      const dims = [2, 1, 768, tensor_width];
+      console.log(inputImage.width, dims);
+      const input_tensor = new ort.Tensor("float32", tensor_raw, dims)
+      console.log('Run inference');
+      runInference(session, input_tensor).then(v => {
+        const [results, inferenceTime] = v;
+        console.log(results.length, inferenceTime);
+        const svg_str = process_output(results, tensor_width, inputImage.width, inputImage.height);
+        setFgSrc(svg_str)
+      }).catch(reason => { console.error(reason); setErrMessage("Failed to run the inference.") });
+    }
+    ).catch(reason => { console.error(reason); setErrMessage("Failed to create a onnx session.") })
+  }
   if (errMessage.length !== 0) {
     return (
       <div className="App">
@@ -129,27 +155,17 @@ function App() {
               onClick={(event) => {
                 try {
                   setMeasureDisabled(true);
-                  console.log("Create onnx session")
-                  ort.InferenceSession.create(
-                    "c2c7.onnx",
-                    {
-                      executionProviders: ["webgl"], graphOptimizationLevel: 'all'
-                    }
-                  ).then(session => {
-                    const tensor_raw = create_input_tensor(inputImage.arr as Uint8Array);
-                    const tensor_width = calc_tensor_width(inputImage.width, inputImage.height);
-                    const dims = [2, 1, 768, tensor_width];
-                    console.log(inputImage.width, dims);
-                    const input_tensor = new ort.Tensor("float32", tensor_raw, dims)
-                    console.log('Run inference');
-                    runInference(session, input_tensor).then(v => {
-                      const [results, inferenceTime] = v;
-                      console.log(results.length, inferenceTime);
-                      const svg_str = process_output(results, tensor_width, inputImage.width, inputImage.height);
-                      setFgSrc(svg_str)
-                    }).catch(reason => { console.error(reason); setErrMessage("Failed to run the inference.") });
+                  if (onnxModel.byteLength === 0) {
+                    console.log("Fetch onnx model")
+                    fetch("c2c7.onnx").then(
+                      response => {
+                        response.arrayBuffer().then(buf => { setOnnxModel(buf); run_model(buf); });
+                      }
+                    );
+                  } else {
+                    // setTimeout is used to re-render this component with "measure" button disabled. There maybe some better way to force render the component.
+                    setTimeout(() => { run_model(onnxModel); }, 10);
                   }
-                  ).catch(reason => { console.error(reason); setErrMessage("Failed to create a onnx session.") })
                 } catch (error) {
                   console.error(error);
                   setErrMessage(error as string);
@@ -157,7 +173,7 @@ function App() {
 
               }}> {measureDisabled ? "Please wait. Measuring takes about 5 - 30 seconds." : "Measure"}
             </button>
-            {measureDisabled ? "" : reset_button}
+            {measureDisabled ? <></> : reset_button}
           </div>
         }
       </div>
