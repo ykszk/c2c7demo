@@ -229,26 +229,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap();
     let best_batch: usize = match args.direction {
         FaceDirection::Auto => {
-            let v_maxes: Vec<Vec<f32>> = arr4
-                .axis_iter(ndarray::Axis(0))
-                .map(|output3| {
-                    let maxes: Vec<f32> = output3
-                        .axis_iter(ndarray::Axis(0))
-                        .map(|output2| output2.fold(f32::MIN, |acc, v| f32::max(acc, *v)))
-                        .collect();
-                    maxes
-                })
-                .collect();
-            debug!("All scores {:?}", v_maxes);
-            let mins: Vec<f32> = v_maxes
-                .iter()
-                .map(|v| v.iter().fold(f32::MAX, |acc, v| f32::min(acc, *v)))
-                .collect();
-            debug!("Scores per batch {:?}", mins);
-            assert!(mins.len() == 2);
-            let bb = if mins[0] > mins[1] { 0 } else { 1 };
-            info!("Facing {}", if bb == 0 { "left" } else { "right" });
-            bb
+            c2c7demo::choose_best_batch(&arr4) as _
         }
         _ => 0,
     };

@@ -477,6 +477,39 @@ pub fn extract_affinity(
         .ok_or_else(|| "Failed to convert to RGBA image".into())
 }
 
+/// Return the index of the best batch
+/// Best batch is the batch with the largest min score
+///
+/// # Arguments
+/// - arr4: shape of (2, 4, height, width)
+pub fn choose_best_batch<S>(arr4: &ndarray::ArrayBase<S, ndarray::Ix4>) -> usize
+where
+    S: ndarray::Data<Elem = f32>,
+{
+    assert_eq!(arr4.shape()[0], 2);
+    assert_eq!(arr4.shape()[1], 6);
+    let v_maxes: Vec<Vec<f32>> = arr4
+        .axis_iter(ndarray::Axis(0))
+        .map(|output3| {
+            let maxes: Vec<f32> = output3
+                .axis_iter(ndarray::Axis(0))
+                .map(|output2| output2.fold(f32::MIN, |acc, v| f32::max(acc, *v)))
+                .collect();
+            maxes
+        })
+        .collect();
+    debug!("All scores {:?}", v_maxes);
+    let mins: Vec<f32> = v_maxes
+        .iter()
+        .map(|v| v.iter().fold(f32::MAX, |acc, v| f32::min(acc, *v)))
+        .collect();
+    debug!("Scores per batch {:?}", mins);
+    assert!(mins.len() == 2);
+    let bb = if mins[0] > mins[1] { 0 } else { 1 };
+    info!("Facing {}", if bb == 0 { "left" } else { "right" });
+    bb
+}
+
 extern crate wasm_bindgen;
 
 use wasm_bindgen::prelude::*;
@@ -495,13 +528,27 @@ pub fn main() {
 pub fn greet(name: &str) {
     alert(&format!("Hello, {}!", name));
 }
+
+#[wasm_bindgen(getter_with_clone)]
+pub struct ImageB64 {
+    pub b64: String,
+    pub width: u32,
+    pub height: u32,
+}
+
 use std::path::Path;
 #[wasm_bindgen]
-pub fn decode_image(encoded: &[u8], filename: &str) -> Result<String, JsValue> {
+pub fn decode_image(encoded: &[u8], filename: &str) -> Result<ImageB64, JsValue> {
+    use image::GenericImageView;
     let filename = Path::new(filename);
     let img = image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
+    let (width, height) = img.dimensions();
     let b64jpg = img2base64(&img, false);
-    Ok(format!("data:image/jpeg;base64,{}", b64jpg))
+    Ok(ImageB64 {
+        b64: format!("data:image/jpeg;base64,{}", b64jpg),
+        width: width,
+        height: height,
+    })
 }
 
 #[wasm_bindgen]
@@ -548,14 +595,26 @@ pub struct Dims {
     pub w: usize,
 }
 
-// pub fn calc_tensor_size(image_width: u32) -> u32 {
-//     let new_width: u32 =
-//         ((image_width as f64) * (TARGET_HEIGHT as f64) / (TARGET_HEIGHT as f64)).round() as u32;
-//     new_width
-// }
+fn calc_resized_width(original_width: u32, original_height: u32) -> u32 {
+    ((original_width as f64) * (TARGET_HEIGHT as f64) / (original_height as f64)).round() as u32
+}
+
+///
+/// # Arguments
+/// - image_width: Original (before resizing and padding) width.
+#[wasm_bindgen]
+pub fn calc_tensor_width(image_width: u32, image_height: u32) -> u32 {
+    let resized_width: u32 =
+        ((image_width as f64) * (TARGET_HEIGHT as f64) / (image_height as f64)).round() as u32;
+    let new_width: u32 = ((resized_width as f64 / 256.0).ceil() * 256.0) as u32;
+    new_width
+}
 
 #[wasm_bindgen]
-pub fn create_input_tensor(encoded: &[u8], filename: &str) -> Result<js_sys::Float32Array, JsValue> {
+pub fn create_input_tensor(
+    encoded: &[u8],
+    filename: &str,
+) -> Result<js_sys::Float32Array, JsValue> {
     use image::error::{ImageFormatHint, UnsupportedError};
     use image::imageops::FilterType;
     use image::{DynamicImage, GenericImageView, ImageBuffer};
@@ -565,7 +624,7 @@ pub fn create_input_tensor(encoded: &[u8], filename: &str) -> Result<js_sys::Flo
     let (width, height) = original_img.dimensions();
     let gray_img = original_img.grayscale();
 
-    let new_width: u32 = ((width as f64) * (TARGET_HEIGHT as f64) / (height as f64)).round() as u32;
+    let new_width: u32 = calc_resized_width(width, height);
     debug!("Original image size: {} {}", width, height);
     info!("Resize to w{} h{}", new_width, TARGET_HEIGHT);
     let resized_img = gray_img.resize_exact(new_width, TARGET_HEIGHT as _, FilterType::Triangle);
@@ -585,205 +644,46 @@ pub fn create_input_tensor(encoded: &[u8], filename: &str) -> Result<js_sys::Flo
     .map_err(|e| JsValue::from(e.to_string()))?;
     info!("Done clahe");
     // let (input_height, input_width) = (TARGET_HEIGHT, new_width);
-    let pad_width = ((new_width as f64 / 256.0).ceil() * 256.0) as u32;
-    let (input_width, input_height) = (TARGET_HEIGHT, TARGET_HEIGHT); // TODO:
+    let pad_width = calc_tensor_width(original_img.dimensions().0, original_img.dimensions().1);
+    let (input_width, input_height) = (pad_width, TARGET_HEIGHT); // TODO:
 
     let tensor_size = (2, 1, input_height as usize, input_width as usize);
     info!("Create input tensor");
-    let input_tensor: ndarray::Array4<f32> = ndarray::Array4::from_shape_fn(tensor_size, |(lr, c, y, x)| {
-        if img.in_bounds(x as _, y as _) {
-            if lr == 0 {
-                img[(x as _, y as _)][c] as f32 / 255.0
+    let input_tensor: ndarray::Array4<f32> =
+        ndarray::Array4::from_shape_fn(tensor_size, |(lr, c, y, x)| {
+            if img.in_bounds(x as _, y as _) {
+                if lr == 0 {
+                    img[(x as _, y as _)][c] as f32 / 255.0
+                } else {
+                    // flip
+                    img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32 / 255.0
+                }
             } else {
-                // flip
-                img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32 / 255.0
+                0.0
             }
-        } else {
-            0.0
-        }
-    })
-    .into();
+        })
+        .into();
     debug!("Input shape {:?}", input_tensor.shape());
     let v = input_tensor.into_raw_vec();
     Ok(js_sys::Float32Array::from(&v[..]))
 }
 
 #[wasm_bindgen]
-pub fn process_output(raw_output: &[f32]) -> Result<String, JsValue> {
+pub fn process_output(
+    raw_output: &[f32],
+    tensor_width: u32,
+    original_width: u32,
+    original_height: u32,
+) -> Result<String, JsValue> {
     let v = Vec::from(raw_output);
-    let arr4 = ndarray::Array4::from_shape_vec((2,6,TARGET_HEIGHT, TARGET_HEIGHT), v).map_err(|e| JsValue::from(e.to_string()))?;
-    // let arr4: ndarray::ArrayView4<f32> = result[0]
-    //     .to_array_view::<f32>()
-    //     .map_err(|e| JsValue::from(e.to_string()))?
-    //     .into_dimensionality()
-    //     .map_err(|e| JsValue::from(e.to_string()))?;
-    let best_batch: usize = {
-        let v_maxes: Vec<Vec<f32>> = arr4
-            .axis_iter(ndarray::Axis(0))
-            .map(|output3| {
-                let maxes: Vec<f32> = output3
-                    .axis_iter(ndarray::Axis(0))
-                    .map(|output2| output2.fold(f32::MIN, |acc, v| f32::max(acc, *v)))
-                    .collect();
-                maxes
-            })
-            .collect();
-        debug!("All scores {:?}", v_maxes);
-        let mins: Vec<f32> = v_maxes
-            .iter()
-            .map(|v| v.iter().fold(f32::MAX, |acc, v| f32::min(acc, *v)))
-            .collect();
-        debug!("Scores per batch {:?}", mins);
-        assert!(mins.len() == 2);
-        let bb = if mins[0] > mins[1] { 0 } else { 1 };
-        info!("Facing {}", if bb == 0 { "left" } else { "right" });
-        bb
-    };
+    let arr4 = ndarray::Array4::from_shape_vec((2, 6, TARGET_HEIGHT, tensor_width as _), v)
+        .map_err(|e| JsValue::from(e.to_string()))?;
+    let best_batch: usize = choose_best_batch(&arr4) as _;
 
     let flip_needed = best_batch != 0;
 
     let img_height = 768;
-    let img_width = 621;
-    let arr3 = arr4
-        .slice(ndarray::s![
-            best_batch,
-            ..,
-            0..img_height as usize,
-            0..img_width as usize
-        ])
-        .map(|v| (v * 255.0) as u8);
-
-    let optimal_points = extract_points(&arr3);
-    let optimal_points = if flip_needed {
-        optimal_points
-            .into_iter()
-            .map(|(x, y)| (img_width as f32 - x - 1.0, y))
-            .collect()
-    } else {
-        optimal_points
-    };
-
-    debug!("Optimal points {:?}", optimal_points);
-    let labels: Vec<String> = LABELS.iter().map(|s| String::from(*s)).collect();
-    let data = PointData::new(
-        &optimal_points,
-        &labels,
-        img_width as _,
-        img_height as _,
-        "",
-    );
-    let document = draw(data, None, false);
-    Ok(document.to_string())
-}
-
-#[wasm_bindgen]
-pub fn apply_model(encoded: &[u8], filename: &str, model_u8: &[u8]) -> Result<String, JsValue> {
-    use image::error::{ImageFormatHint, UnsupportedError};
-    use image::imageops::FilterType;
-    use image::{DynamicImage, GenericImageView, ImageBuffer};
-    let filename = Path::new(filename);
-    let original_img =
-        image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
-    let (width, height) = original_img.dimensions();
-    let gray_img = original_img.grayscale();
-
-    let new_width: u32 = ((width as f64) * (TARGET_HEIGHT as f64) / (height as f64)).round() as u32;
-    debug!("Original image size: {} {}", width, height);
-    info!("Resize to w{} h{}", new_width, TARGET_HEIGHT);
-    let resized_img = gray_img.resize_exact(new_width, TARGET_HEIGHT as _, FilterType::Triangle);
-    let img = match &resized_img {
-        DynamicImage::ImageLuma8(img) => {
-            debug!("input u8 to clahe");
-            clahe::clahe(img, 32, 32, 10)
-        }
-        DynamicImage::ImageLuma16(img) => {
-            debug!("input u16 to clahe");
-            clahe::clahe(img, 32, 32, 10000)
-        }
-        _ => {
-            return Err(JsValue::from("Unsupported image"));
-        }
-    }
-    .map_err(|e| JsValue::from(e.to_string()))?;
-    info!("Done clahe");
-    // let (input_height, input_width) = (TARGET_HEIGHT, new_width);
-    let pad_width = ((new_width as f64 / 256.0).ceil() * 256.0) as u32;
-    let (input_width, input_height) = (pad_width, TARGET_HEIGHT);
-
-    let tensor_size = (2, 1, input_height as usize, input_width as usize);
-    info!("Create input tensor");
-    let input_tensor: Tensor = ndarray::Array4::from_shape_fn(tensor_size, |(lr, c, y, x)| {
-        if img.in_bounds(x as _, y as _) {
-            if lr == 0 {
-                img[(x as _, y as _)][c] as f32 / 255.0
-            } else {
-                // flip
-                img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32 / 255.0
-            }
-        } else {
-            0.0
-        }
-    })
-    .into();
-    debug!("Input shape {:?}", input_tensor.shape());
-    use tract_onnx::prelude::*;
-    let mut reader = std::io::BufReader::new(model_u8);
-    info!("Create model");
-    // let onnx_model = include_bytes!("../c2c7.onnx");
-    let model = tract_onnx::onnx()
-        .model_for_read(&mut reader)
-        // .model_for_read(&mut std::io::BufReader::new(&onnx_model[..]))
-        .map_err(|e| JsValue::from(e.to_string()))?
-        .with_input_fact(
-            0,
-            InferenceFact::dt_shape(
-                f32::datum_type(),
-                tvec!(2, 1, input_height as usize, input_width as usize),
-            ),
-        )
-        .map_err(|e| JsValue::from(e.to_string()))?
-        .into_optimized()
-        .map_err(|e| JsValue::from(e.to_string()))?
-        .into_runnable()
-        .map_err(|e| JsValue::from(e.to_string()))?;
-
-    info!("Run model");
-    // run the model on the input
-    let result = model
-        .run(tvec!(input_tensor))
-        .map_err(|e| JsValue::from(e.to_string()))?;
-    debug!("Output shape {:?}", result[0].shape());
-    let (img_width, img_height) = img.dimensions();
-    let arr4: ndarray::ArrayView4<f32> = result[0]
-        .to_array_view::<f32>()
-        .map_err(|e| JsValue::from(e.to_string()))?
-        .into_dimensionality()
-        .map_err(|e| JsValue::from(e.to_string()))?;
-    let best_batch: usize = {
-        let v_maxes: Vec<Vec<f32>> = arr4
-            .axis_iter(ndarray::Axis(0))
-            .map(|output3| {
-                let maxes: Vec<f32> = output3
-                    .axis_iter(ndarray::Axis(0))
-                    .map(|output2| output2.fold(f32::MIN, |acc, v| f32::max(acc, *v)))
-                    .collect();
-                maxes
-            })
-            .collect();
-        debug!("All scores {:?}", v_maxes);
-        let mins: Vec<f32> = v_maxes
-            .iter()
-            .map(|v| v.iter().fold(f32::MAX, |acc, v| f32::min(acc, *v)))
-            .collect();
-        debug!("Scores per batch {:?}", mins);
-        assert!(mins.len() == 2);
-        let bb = if mins[0] > mins[1] { 0 } else { 1 };
-        info!("Facing {}", if bb == 0 { "left" } else { "right" });
-        bb
-    };
-
-    let flip_needed = best_batch != 0;
-
+    let img_width = calc_resized_width(original_width, original_height);
     let arr3 = arr4
         .slice(ndarray::s![
             best_batch,
