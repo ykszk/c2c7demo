@@ -106,7 +106,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else {
         image::open(&args.input).unwrap()
     };
-    let target_height = 768;
+    let target_height = c2c7demo::TARGET_HEIGHT as u32;
     let (width, height) = original_img.dimensions();
     let gray_img = original_img.grayscale();
 

@@ -592,7 +592,8 @@ pub fn load_image(encoded: &[u8]) -> Result<image::DynamicImage, JsValue> {
         },
         Err(e) => {
             debug!("{}", e);
-            image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))
+            let img = image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
+            Ok(DynamicImage::ImageLuma8(img.to_luma8()))
         }
     }
 }
@@ -603,7 +604,7 @@ pub fn decode_image(encoded: &[u8]) -> Result<ImageB64, JsValue> {
     let img = match img {
         DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
         DynamicImage::ImageLuma16(img) => Some(luma8toluma16(&img)),
-        _ => None,
+        _ => Some(DynamicImage::ImageLuma8(img.to_luma8())),
     }.unwrap();
     let (width, height) = img.dimensions();
     let b64jpg = img2base64(&img, false);
@@ -614,7 +615,7 @@ pub fn decode_image(encoded: &[u8]) -> Result<ImageB64, JsValue> {
     })
 }
 
-const TARGET_HEIGHT: usize = 768;
+pub const TARGET_HEIGHT: usize = 768;
 
 fn calc_resized_width(original_width: u32, original_height: u32) -> u32 {
     ((original_width as f64) * (TARGET_HEIGHT as f64) / (original_height as f64)).round() as u32
