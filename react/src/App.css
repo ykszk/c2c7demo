@@ -84,3 +84,11 @@ div.buttons>* {
   display: block;
   margin: .5em;
 }
+
+.error::before {
+  content: "ERROR: "
+}
+.error {
+  border: solid red;
+  padding: 1em;
+}
