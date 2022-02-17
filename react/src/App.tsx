@@ -2,7 +2,6 @@ import './App.css';
 import { useEffect, useState } from 'react'
 import Dropzone from 'react-dropzone'
 import init, { decode_image, create_input_tensor, process_output, calc_tensor_width } from "c2c7demo";
-// import { Tensor, InferenceSession } from "onnxruntime-web";
 import * as ort from 'onnxruntime-web';
 
 class ImageFile {
@@ -66,7 +65,7 @@ function App() {
       const buf = reader.result as ArrayBuffer;
       const arr = new Uint8Array(buf);
       try {
-        const imgb64 = decode_image(arr, filename);
+        const imgb64 = decode_image(arr);
         setInputImage(new ImageFile(filename, imgb64.b64, imgb64.width, imgb64.height, arr));
       } catch (error) {
         console.error(error);
@@ -125,7 +124,7 @@ function App() {
                         executionProviders: ["webgl"], graphOptimizationLevel: 'all'
                       }
                     ).then(session => {
-                      const tensor_raw = create_input_tensor(inputImage.arr as Uint8Array, inputImage.filename);
+                      const tensor_raw = create_input_tensor(inputImage.arr as Uint8Array);
                       const tensor_width = calc_tensor_width(inputImage.width, inputImage.height);
                       const dims = [2, 1, 768, tensor_width];
                       console.log(inputImage.width, dims);
@@ -143,6 +142,7 @@ function App() {
 
                   }}>Measure
                 </button>
+                <p className="smallNote">Takes about 5 - 30 seconds.</p>
               </div>
             }
 
@@ -153,7 +153,7 @@ function App() {
               <section>
                 <div className="dropzone" {...getRootProps()}>
                   <input {...getInputProps()} />
-                  <p>Drag input image, or click to choose a file.</p>
+                  <p>Drag input image, or click to choose a file. PNG, JPEG or DICOM (experimental).</p>
                 </div>
               </section>
             )}

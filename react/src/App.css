@@ -76,6 +76,10 @@ label {
   font-size: 12px;
 }
 
+.smallNote {
+  font-size: 12px;
+}
+
 div.buttons>* {
   display: block;
   margin: .5em;

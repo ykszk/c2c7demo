@@ -419,6 +419,9 @@ use dicom::dictionary_std;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 
+///
+/// # Arguments
+/// - bytes: Raw bytes from a dicom file with preamble
 pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn std::error::Error>> {
     assert!(bytes.len() > 128);
     let wo_preamble = &bytes[128..]; // skip preamble
@@ -579,12 +582,29 @@ pub struct ImageB64 {
     pub height: u32,
 }
 
-use std::path::Path;
+/// load dicom or png/jpeg image
+pub fn load_image(encoded: &[u8]) -> Result<image::DynamicImage, JsValue> {
+    let dcm_img = load_dicom_from_u8(encoded);
+    match dcm_img {
+        Ok(img) => {
+            info!("Dicom has been loaded");
+            Ok(img)
+        },
+        Err(e) => {
+            debug!("{}", e);
+            image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))
+        }
+    }
+}
+
 #[wasm_bindgen]
-pub fn decode_image(encoded: &[u8], filename: &str) -> Result<ImageB64, JsValue> {
-    use image::GenericImageView;
-    let filename = Path::new(filename);
-    let img = image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
+pub fn decode_image(encoded: &[u8]) -> Result<ImageB64, JsValue> {
+    let img = load_image(encoded)?;
+    let img = match img {
+        DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
+        DynamicImage::ImageLuma16(img) => Some(luma8toluma16(&img)),
+        _ => None,
+    }.unwrap();
     let (width, height) = img.dimensions();
     let b64jpg = img2base64(&img, false);
     Ok(ImageB64 {
@@ -592,37 +612,6 @@ pub fn decode_image(encoded: &[u8], filename: &str) -> Result<ImageB64, JsValue>
         width: width,
         height: height,
     })
-}
-
-#[wasm_bindgen]
-pub fn preprocess_image(encoded: &[u8], filename: &str) -> Result<String, JsValue> {
-    let filename = Path::new(filename);
-    let original_img =
-        image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
-    let target_height = 768;
-    let (width, height) = original_img.dimensions();
-    let gray_img = original_img.grayscale();
-
-    let new_width: u32 = ((width as f64) * (target_height as f64) / (height as f64)).round() as u32;
-    debug!("Original image size: {} {}", width, height);
-    info!("Resize to w{} h{}", new_width, target_height);
-    let resized_img = gray_img.resize_exact(new_width, target_height, FilterType::Triangle);
-    let img = match &resized_img {
-        DynamicImage::ImageLuma8(img) => {
-            debug!("input u8 to clahe");
-            clahe::clahe(img, 32, 32, 10)
-        }
-        DynamicImage::ImageLuma16(img) => {
-            debug!("input u16 to clahe");
-            clahe::clahe(img, 32, 32, 10000)
-        }
-        _ => {
-            return Err(JsValue::from("Unsupported image"));
-        }
-    }
-    .map_err(|e| JsValue::from(e.to_string()))?;
-    let b64jpg = img2base64(&DynamicImage::ImageLuma8(img), true);
-    Ok(format!("data:image/png;base64,{}", b64jpg))
 }
 
 const TARGET_HEIGHT: usize = 768;
@@ -645,11 +634,8 @@ pub fn calc_tensor_width(image_width: u32, image_height: u32) -> u32 {
 #[wasm_bindgen]
 pub fn create_input_tensor(
     encoded: &[u8],
-    filename: &str,
 ) -> Result<js_sys::Float32Array, JsValue> {
-    let filename = Path::new(filename);
-    let original_img =
-        image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
+    let original_img = load_image(encoded)?;
     let (width, height) = original_img.dimensions();
     let gray_img = original_img.grayscale();
 
