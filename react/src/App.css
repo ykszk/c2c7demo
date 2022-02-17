@@ -48,7 +48,10 @@ div.main>div {
 
 .dropzone:hover {
   background-color: #00000022;
+}
 
+.dragActive {
+  background-color: #00000022;
 }
 
 div.overlay {

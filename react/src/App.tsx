@@ -1,6 +1,6 @@
 import './App.css';
-import { useEffect, useState } from 'react'
-import Dropzone from 'react-dropzone'
+import { useEffect, useState, useCallback } from 'react'
+import { useDropzone } from 'react-dropzone'
 import init, { decode_image, create_input_tensor, process_output, calc_tensor_width } from "c2c7demo";
 import * as ort from 'onnxruntime-web';
 
@@ -53,6 +53,10 @@ function App() {
     })
   }, [])
 
+  const onDrop = useCallback(acceptedFiles => {
+    processImage(acceptedFiles[0]);
+  }, [])
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
   const [inputImage, setInputImage] = useState(ImageFile.default());
   const [errMessage, setErrMessage] = useState("");
   const [onnxModel, setOnnxModel] = useState(new ArrayBuffer(0));
@@ -115,16 +119,14 @@ function App() {
   } else if (inputImage.is_default()) {
     return (
       <div className="App">
-        <Dropzone onDrop={async acceptedFiles => processImage(acceptedFiles[0])}>
-          {({ getRootProps, getInputProps }) => (
-            <section>
-              <div className="dropzone" {...getRootProps()}>
-                <input {...getInputProps()} />
-                <p>Drag input image, or click to choose a file. PNG, JPEG or DICOM (experimental).</p>
-              </div>
-            </section>
-          )}
-        </Dropzone>
+        <div className={"dropzone" + (isDragActive ? " dragActive" : "")} {...getRootProps()}>
+          <input {...getInputProps()} />
+          {
+            isDragActive ?
+              <p>Open the file ...</p> :
+              <p>Drag input image, or click to choose a file. PNG, JPEG or DICOM (experimental).</p>
+          }
+        </div>
       </div>
     )
   }
@@ -157,7 +159,7 @@ function App() {
                   setMeasureDisabled(true);
                   if (onnxModel.byteLength === 0) {
                     console.log("Fetch onnx model")
-                    fetch("c2c7.onnx").then(
+                    fetch(process.env.PUBLIC_URL + "/c2c7.onnx").then(
                       response => {
                         response.arrayBuffer().then(buf => { setOnnxModel(buf); run_model(buf); });
                       }
