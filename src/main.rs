@@ -61,15 +61,6 @@ struct Args {
     no_background: bool,
 }
 
-fn load_dicom(filename: &str) -> Result<image::DynamicImage, Box<dyn Error>> {
-    use std::fs::File;
-    use std::io::Read;
-    let mut f = File::open(filename)?;
-    let mut bytes: Vec<u8> = Vec::new();
-    f.read_to_end(&mut bytes)?;
-    c2c7demo::load_dicom_from_u8(&bytes)
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
@@ -95,7 +86,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     info!("Open {}", args.input);
     let original_img = if try_dicom {
         info!("Open as dicom");
-        let dicom_img = load_dicom(&args.input);
+        let dicom_img = c2c7demo::load_dicom(&args.input);
         match dicom_img {
             Ok(img) => img,
             Err(e) => {

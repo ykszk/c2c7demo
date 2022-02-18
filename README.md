@@ -1,16 +1,22 @@
 # C2C7 Angle Demo
-Demo apps of C2C7 Cobb angle measure by AI.
+Demo apps of C2C7 Cobb angle measure by AI presented in our [paper (preprint)](https://europepmc.org/article/ppr/ppr449186).
 
 Following two versions are available.
 
-- [Executable]()
-- [Web app](https://yk-szk.github.io/c2c7demo/)
+- [Web app](https://yk-szk.github.io/c2c7demo/) for easy use
+- [Executable](https://github.com/yk-szk/c2c7demo/releases/latest) for more flexibility.
+
+## Executable
+Command line program.
+Batch execution is available by c2c7batch.
+
+## Web app
+Available in [Github Pages](https://yk-szk.github.io/c2c7demo/)
 
 # Development
 
 ## Executable
 Executable varsion is coded in rust. Some functions are exported as wasm for the web app version.
-
 
 ## Create ONNX model for the web app
 The model needs to be compatible with WebGL backend.

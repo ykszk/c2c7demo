@@ -105,6 +105,28 @@ fn img2base64(img: &image::DynamicImage, png: bool) -> String {
     base64::encode(&buf)
 }
 
+/// Calculate cobb angle in degrees
+pub fn calc_angle(points: &[Point]) -> f32 {
+    let (p1, p2) = (points[0], points[1]);
+    let c2_line = lyon_geom::Line::from_points(
+        lyon_geom::Point::new(p1.0, p1.1),
+        lyon_geom::Point::new(p2.0, p2.1),
+    );
+    let (p1, p2) = (points[2], points[3]);
+    let c7_line = lyon_geom::Line::from_points(
+        lyon_geom::Point::new(p1.0, p1.1),
+        lyon_geom::Point::new(p2.0, p2.1),
+    );
+    let angle_degree = c2_line.vector.angle_to(c7_line.vector).to_degrees();
+    if points[0].0 > points[1].0 {
+        // facing right
+        -angle_degree
+    } else {
+        // facing left
+        angle_degree
+    }
+}
+
 pub fn draw(
     json_data: PointData,
     background: Option<image::DynamicImage>,
@@ -191,7 +213,7 @@ pub fn draw(
             .set("y2", int2.y);
         group = group.add(line);
     }
-    let angle_degree = c2_line.vector.angle_to(c7_line.vector).to_degrees();
+    let angle_degree = calc_angle(&points); //c2_line.vector.angle_to(c7_line.vector).to_degrees();
     let angle_degree = if points[0].0 > points[1].0 {
         // facing right
         -angle_degree
@@ -419,6 +441,15 @@ use dicom::dictionary_std;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 
+pub fn load_dicom(filename: &str) -> Result<image::DynamicImage, Box<dyn std::error::Error>> {
+    use std::fs::File;
+    use std::io::Read;
+    let mut f = File::open(filename)?;
+    let mut bytes: Vec<u8> = Vec::new();
+    f.read_to_end(&mut bytes)?;
+    load_dicom_from_u8(&bytes)
+}
+
 ///
 /// # Arguments
 /// - bytes: Raw bytes from a dicom file with preamble
@@ -557,22 +588,12 @@ where
 }
 
 extern crate wasm_bindgen;
-
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-extern "C" {
-    pub fn alert(s: &str);
-}
 #[wasm_bindgen(start)]
 pub fn main() {
     wasm_logger::init(wasm_logger::Config::default());
     debug!("logger initialized");
-}
-
-#[wasm_bindgen]
-pub fn greet(name: &str) {
-    alert(&format!("Hello, {}!", name));
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -611,8 +632,8 @@ pub fn decode_image(encoded: &[u8]) -> Result<ImageB64, JsValue> {
     let b64jpg = img2base64(&img, false);
     Ok(ImageB64 {
         b64: format!("data:image/jpeg;base64,{}", b64jpg),
-        width: width,
-        height: height,
+        width,
+        height,
     })
 }
 

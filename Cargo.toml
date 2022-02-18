@@ -12,6 +12,10 @@ name = "c2c7angle"
 path = "src/main.rs"
 
 [[bin]]
+name = "c2c7batch"
+path = "src/batch.rs"
+
+[[bin]]
 name = "dev"
 path = "src/dev.rs"
 
@@ -42,6 +46,7 @@ usvg = { version = "0", default-features = false }
 tiny-skia = { version = "0", default-features = false }
 base64 = { version = "0", default-features = false }
 lyon_geom = { version = "0", default-features = false }
+csv = "1"
 wasm-bindgen = "0.2"
 wasm-logger = "0"
 js-sys = "0.3"
