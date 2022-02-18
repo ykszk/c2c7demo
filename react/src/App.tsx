@@ -26,6 +26,16 @@ class ImageFile {
   }
 }
 
+class Result {
+  image: string;
+  inferenceTime: number;
+
+  constructor(image: string, inferenceTimer: number) {
+    this.image = image;
+    this.inferenceTime = inferenceTimer;
+  }
+}
+
 // cf. [Classify images in a web application with ONNX Runtime Web](https://onnxruntime.ai/docs/tutorials/web/classify-images-nextjs-github-template.html)
 async function runInference(session: ort.InferenceSession, preprocessedData: any): Promise<[Float32Array, number]> {
   // Get start time to calculate inference time.
@@ -69,7 +79,8 @@ function App() {
   const [errMessage, setErrMessage] = useState("");
   const [onnxModel, setOnnxModel] = useState(new ArrayBuffer(0));
   const [measureDisabled, setMeasureDisabled] = useState(false);
-  const [fgSrc, setFgSrc] = useState("");
+  const [result, setResult] = useState(new Result("", 0));
+  // const [fgSrc, setFgSrc] = useState("");
   const processImage = async (file: File) => {
     const filename = file.name;
     console.log(filename);
@@ -88,10 +99,10 @@ function App() {
       }
     }
   }
-  const blob = new Blob([fgSrc], { type: 'image/svg+xml' });
+  const blob = new Blob([result.image], { type: 'image/svg+xml' });
   const fgURL = URL.createObjectURL(blob);
   const reset_button = (
-    <button title="Restart from the start" onClick={() => { setInputImage(ImageFile.default()); setFgSrc(""); setErrMessage(""); setMeasureDisabled(false) }}>Reset</button>
+    <button title="Restart from the start" onClick={() => { setInputImage(ImageFile.default()); setResult(new Result("", 0)); setErrMessage(""); setMeasureDisabled(false) }}>Reset</button>
   )
 
   function run_model(model: ArrayBuffer) {
@@ -99,7 +110,7 @@ function App() {
     ort.InferenceSession.create(
       model,
       {
-        executionProviders: ["webgl"], graphOptimizationLevel: 'all'
+        executionProviders: ["wasm", "webgl"], graphOptimizationLevel: 'all'
       }
     ).then(session => {
       const tensor_raw = create_input_tensor(inputImage.arr as Uint8Array);
@@ -112,7 +123,7 @@ function App() {
         const [results, inferenceTime] = v;
         console.log(results.length, inferenceTime);
         const svg_str = process_output(inputImage.arr as Uint8Array, results, tensor_width, inputImage.width, inputImage.height);
-        setFgSrc(svg_str)
+        setResult(new Result(svg_str, inferenceTime));
       }).catch(reason => { console.error(reason); setErrMessage("Failed to run the inference.") });
     }
     ).catch(reason => { console.error(reason); setErrMessage("Failed to create a onnx session.") })
@@ -132,7 +143,7 @@ function App() {
           {
             isDragActive ?
               <p>Open the file ...</p> :
-              <p>Drag input image, or click to choose a file. PNG, JPEG or DICOM (experimental).</p>
+              <p>Drop lateral radiograph of cervical spine, or click to choose. PNG, JPEG or DICOM (experimental).</p>
           }
         </div>
       </div>
@@ -145,14 +156,15 @@ function App() {
           <h3>Input Image</h3>
           <img alt="input" src={inputImage.b64} />
         </div>
-        {fgSrc.length ?
+        {result.image.length ?
           <>
             <div>
               <h3>Result</h3>
-              <img alt="result" className="bg" src={fgURL} />
+              <img alt="result" src={fgURL} />
             </div>
             <div className="buttons">
-              <button title="Save output" onClick={() => { downloadAsSVG(fgSrc, (inputImage.filename.substring(0, inputImage.filename.lastIndexOf('.')) || inputImage.filename) + ".svg") }}>Save</button>
+              <p className="smallNote">Inference took {result.inferenceTime.toFixed(1)} secs.</p>
+              <button title="Save output" onClick={() => { downloadAsSVG(result.image, (inputImage.filename.substring(0, inputImage.filename.lastIndexOf('.')) || inputImage.filename) + ".svg") }}>Save</button>
               {reset_button}
             </div>
           </>

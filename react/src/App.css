@@ -1,90 +1,11 @@
+
 .App {
+  /* margin-bottom: auto; */
+  margin: auto;
   text-align: center;
-  background-color: #282c34;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
 
-div.main {
-  display: flex;
-  flex-direction: row;
-  width: 100vw;
-  justify-content: center;
-}
-
-div.buttons {
-  display: flex;
-  flex-direction: column;
-}
-
-div.buttons>* {
-  align-self: baseline;
-}
-
-@media screen and (max-width: 960px) {
-  div.main {
-    flex-direction: column;
-  }
-
-  div.buttons {
-    flex-direction: row;
-  }
-}
-
-div.main>div {
-  align-self: center;
-}
-
-.dropzone {
-  cursor: pointer;
-  width: 95vw;
-  padding: .5em;
-}
-
-.dropzone:hover {
-  background-color: #00000022;
-}
-
-.dragActive {
-  background-color: #00000022;
-}
-
-img {
-  max-width: min(512px, 100vw);
-  max-height: min(512px, 100vw);
-}
-
-img.fg {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-h3 {
-  font-size: 24px;
-  padding: .5em;
-  margin: 0;
-}
-
-label {
-  font-size: 12px;
-}
-
-.smallNote {
-  font-size: 12px;
-}
-
-div.buttons>* {
-  display: block;
-  margin: .5em;
-}
-
-.error {
-  border: solid red;
-  padding: 1em;
 }
