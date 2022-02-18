@@ -589,7 +589,7 @@ pub fn load_image(encoded: &[u8]) -> Result<image::DynamicImage, JsValue> {
         Ok(img) => {
             info!("Dicom has been loaded");
             Ok(img)
-        },
+        }
         Err(e) => {
             debug!("{}", e);
             let img = image::load_from_memory(encoded).map_err(|e| JsValue::from(e.to_string()))?;
@@ -605,7 +605,8 @@ pub fn decode_image(encoded: &[u8]) -> Result<ImageB64, JsValue> {
         DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
         DynamicImage::ImageLuma16(img) => Some(luma8toluma16(&img)),
         _ => Some(DynamicImage::ImageLuma8(img.to_luma8())),
-    }.unwrap();
+    }
+    .unwrap();
     let (width, height) = img.dimensions();
     let b64jpg = img2base64(&img, false);
     Ok(ImageB64 {
@@ -633,9 +634,7 @@ pub fn calc_tensor_width(image_width: u32, image_height: u32) -> u32 {
 }
 
 #[wasm_bindgen]
-pub fn create_input_tensor(
-    encoded: &[u8],
-) -> Result<js_sys::Float32Array, JsValue> {
+pub fn create_input_tensor(encoded: &[u8]) -> Result<js_sys::Float32Array, JsValue> {
     let original_img = load_image(encoded)?;
     let (width, height) = original_img.dimensions();
     let gray_img = original_img.grayscale();
@@ -659,9 +658,8 @@ pub fn create_input_tensor(
     }
     .map_err(|e| JsValue::from(e.to_string()))?;
     info!("Done clahe");
-    // let (input_height, input_width) = (TARGET_HEIGHT, new_width);
     let pad_width = calc_tensor_width(original_img.dimensions().0, original_img.dimensions().1);
-    let (input_width, input_height) = (pad_width, TARGET_HEIGHT); // TODO:
+    let (input_width, input_height) = (pad_width, TARGET_HEIGHT);
 
     let tensor_size = (2, 1, input_height as usize, input_width as usize);
     info!("Create input tensor");
@@ -685,6 +683,7 @@ pub fn create_input_tensor(
 
 #[wasm_bindgen]
 pub fn process_output(
+    encoded: &[u8],
     raw_output: &[f32],
     tensor_width: u32,
     original_width: u32,
@@ -727,6 +726,14 @@ pub fn process_output(
         img_height as _,
         "",
     );
-    let document = draw(data, None, false);
+
+    let background = load_image(encoded)?;
+    let background = match background {
+        DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
+        DynamicImage::ImageLuma16(img) => Some(luma8toluma16(&img)),
+        _ => Some(DynamicImage::ImageLuma8(background.to_luma8())),
+    }
+    .unwrap();
+    let document = draw(data, Some(background), false);
     Ok(document.to_string())
 }

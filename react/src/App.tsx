@@ -41,9 +41,17 @@ async function runInference(session: ort.InferenceSession, preprocessedData: any
   const inferenceTime = (end.getTime() - start.getTime()) / 1000;
   // Get output results with the output name from the model export.
   const output = outputData[session.outputNames[0]];
-  console.log(output.dims, output.type);
   const arr = output.data as Float32Array;
   return [arr, inferenceTime];
+}
+
+function downloadAsSVG(text: string, name: string) {
+  const blob = new Blob([text], { type: 'image/svg+xml' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  link.click();
+  link.remove();
 }
 
 function App() {
@@ -103,7 +111,7 @@ function App() {
       runInference(session, input_tensor).then(v => {
         const [results, inferenceTime] = v;
         console.log(results.length, inferenceTime);
-        const svg_str = process_output(results, tensor_width, inputImage.width, inputImage.height);
+        const svg_str = process_output(inputImage.arr as Uint8Array, results, tensor_width, inputImage.width, inputImage.height);
         setFgSrc(svg_str)
       }).catch(reason => { console.error(reason); setErrMessage("Failed to run the inference.") });
     }
@@ -141,13 +149,10 @@ function App() {
           <>
             <div>
               <h3>Result</h3>
-              <div className="overlay">
-                <img alt="background" className="bg" src={inputImage.b64} />
-                <img alt="foreground" className="fg" src={fgURL} />
-              </div>
+              <img alt="result" className="bg" src={fgURL} />
             </div>
             <div className="buttons">
-              <button title="Save output">Save</button>
+              <button title="Save output" onClick={() => { downloadAsSVG(fgSrc, (inputImage.filename.substring(0, inputImage.filename.lastIndexOf('.')) || inputImage.filename) + ".svg") }}>Save</button>
               {reset_button}
             </div>
           </>
@@ -159,7 +164,7 @@ function App() {
                   setMeasureDisabled(true);
                   if (onnxModel.byteLength === 0) {
                     console.log("Fetch onnx model")
-                    fetch(process.env.PUBLIC_URL + "/c2c7.onnx").then(
+                    fetch(process.env.PUBLIC_URL + "/c2c7_MNetV2.onnx").then(
                       response => {
                         response.arrayBuffer().then(buf => { setOnnxModel(buf); run_model(buf); });
                       }

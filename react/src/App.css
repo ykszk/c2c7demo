@@ -54,10 +54,6 @@ div.main>div {
   background-color: #00000022;
 }
 
-div.overlay {
-  position: relative;
-}
-
 img {
   max-width: min(512px, 100vw);
   max-height: min(512px, 100vw);
@@ -88,9 +84,6 @@ div.buttons>* {
   margin: .5em;
 }
 
-.error::before {
-  content: "ERROR: "
-}
 .error {
   border: solid red;
   padding: 1em;
