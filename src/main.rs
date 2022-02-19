@@ -261,7 +261,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else {
         match gray_img {
             DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
-            DynamicImage::ImageLuma16(img) => Some(c2c7demo::luma8toluma16(&img)),
+            DynamicImage::ImageLuma16(img) => Some(c2c7demo::luma16toluma8(&img)),
             _ => None,
         }
     };

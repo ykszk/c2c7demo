@@ -12,6 +12,7 @@ use tract_onnx::prelude::tract_ndarray::{s, Axis};
 
 pub type Point = (f32, f32);
 pub const LABELS: [&str; 4] = ["C2A", "C2P", "C7A", "C7P"];
+pub const DEFAULT_MODEL: &str = "c2c7.onnx";
 
 pub trait FromPoint<S> {
     fn from_points(p1: lyon_geom::Point<S>, p2: lyon_geom::Point<S>) -> Self
@@ -93,8 +94,8 @@ impl PointData {
     }
 }
 
-pub const DEFAULT_MODEL: &str = "c2c7.onnx";
-
+/// Find model
+/// Look for the model in the working directory and then in the binary's directory.
 pub fn resolve_model_path(model_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     if std::path::Path::new(model_path).exists() {
         Ok(model_path.into())
@@ -143,6 +144,7 @@ pub fn calc_angle(points: &[Point]) -> f32 {
     }
 }
 
+/// Draw lines and angle as SVG
 pub fn draw(
     json_data: PointData,
     background: Option<image::DynamicImage>,
@@ -229,7 +231,7 @@ pub fn draw(
             .set("y2", int2.y);
         group = group.add(line);
     }
-    let angle_degree = calc_angle(&points); //c2_line.vector.angle_to(c7_line.vector).to_degrees();
+    let angle_degree = calc_angle(&points);
     let angle_degree = if points[0].0 > points[1].0 {
         // facing right
         -angle_degree
@@ -358,6 +360,7 @@ pub fn draw(
     document
 }
 
+/// Extract landmark point out of the input heatmaps
 pub fn extract_points(arr: &ndarray::Array3<u8>) -> Vec<Point> {
     let height = arr.shape()[1];
     let width = arr.shape()[2];
@@ -497,7 +500,8 @@ pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn s
     Ok(DynamicImage::ImageLuma16(buf))
 }
 
-pub fn luma8toluma16(img: &image::ImageBuffer<image::Luma<u16>, Vec<u16>>) -> image::DynamicImage {
+/// Convert 16bit gray image into 8bit image using minmax normalization
+pub fn luma16toluma8(img: &image::ImageBuffer<image::Luma<u16>, Vec<u16>>) -> image::DynamicImage {
     let max_value = *img.iter().max().unwrap() as f32;
     let buf: Vec<u8> = img
         .iter()
@@ -508,6 +512,7 @@ pub fn luma8toluma16(img: &image::ImageBuffer<image::Luma<u16>, Vec<u16>>) -> im
     )
 }
 
+/// Extract heatmap of landmark points as RGB image from 6 channel output.
 pub fn extract_heatmap(
     arr: &ndarray::Array3<u8>,
 ) -> Result<image::RgbaImage, Box<dyn std::error::Error>> {
@@ -539,7 +544,7 @@ pub fn extract_heatmap(
     image::RgbaImage::from_raw(width as _, height as _, rows)
         .ok_or_else(|| "Failed to convert to RGBA image".into())
 }
-
+/// Extract affinity map as RGB image from 6 channel output.
 pub fn extract_affinity(
     arr: &ndarray::Array3<u8>,
 ) -> Result<image::RgbaImage, Box<dyn std::error::Error>> {
@@ -640,7 +645,7 @@ pub fn decode_image(encoded: &[u8]) -> Result<ImageB64, JsValue> {
     let img = load_image(encoded)?;
     let img = match img {
         DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
-        DynamicImage::ImageLuma16(img) => Some(luma8toluma16(&img)),
+        DynamicImage::ImageLuma16(img) => Some(luma16toluma8(&img)),
         _ => Some(DynamicImage::ImageLuma8(img.to_luma8())),
     }
     .unwrap();
@@ -768,7 +773,7 @@ pub fn process_output(
     let background = load_image(encoded)?;
     let background = match background {
         DynamicImage::ImageLuma8(img) => Some(DynamicImage::ImageLuma8(img)),
-        DynamicImage::ImageLuma16(img) => Some(luma8toluma16(&img)),
+        DynamicImage::ImageLuma16(img) => Some(luma16toluma8(&img)),
         _ => Some(DynamicImage::ImageLuma8(background.to_luma8())),
     }
     .unwrap();
