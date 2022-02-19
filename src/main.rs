@@ -29,7 +29,7 @@ struct Args {
     output: String,
 
     /// Model path
-    #[clap(short, long, default_value = "c2c7.onnx")]
+    #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
     model: String,
 
     /// Specify once or twice to set log level info or debug repsectively.
@@ -148,9 +148,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         _ => 1,
     };
 
+    let model_path = c2c7demo::resolve_model_path(&args.model)?;
+
     info!("Load model");
     let model = tract_onnx::onnx()
-        .model_for_path(args.model)?
+        .model_for_path(model_path)?
         .with_input_fact(
             0,
             InferenceFact::dt_shape(

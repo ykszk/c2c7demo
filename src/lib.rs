@@ -93,6 +93,22 @@ impl PointData {
     }
 }
 
+pub const DEFAULT_MODEL: &str = "c2c7.onnx";
+
+pub fn resolve_model_path(model_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+    if std::path::Path::new(model_path).exists() {
+        Ok(model_path.into())
+    } else {
+        let mut exe = std::env::current_exe()?;
+        exe.set_file_name(DEFAULT_MODEL);
+        if !exe.exists() {
+            panic!("Model file not found.");
+        }
+        info!("Use default model {:?}", exe);
+        Ok(exe.to_str().unwrap().into())
+    }
+}
+
 fn img2base64(img: &image::DynamicImage, png: bool) -> String {
     let mut buf = Vec::new();
     if png {
@@ -643,6 +659,7 @@ fn calc_resized_width(original_width: u32, original_height: u32) -> u32 {
     ((original_width as f64) * (TARGET_HEIGHT as f64) / (original_height as f64)).round() as u32
 }
 
+/// Calculate image width (tensor width) after resizing and padding
 ///
 /// # Arguments
 /// - image_width: Original (before resizing and padding) width.

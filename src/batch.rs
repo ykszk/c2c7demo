@@ -24,7 +24,7 @@ struct Args {
     output_dir: Option<PathBuf>,
 
     /// Model path
-    #[clap(short, long, default_value = "c2c7.onnx")]
+    #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
     model: String,
 
     /// Specify once or twice to set log level info or debug repsectively.
@@ -95,6 +95,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     if !fs::metadata(&output_dir).unwrap().is_dir() {
         panic!("Output is not a directory.")
     }
+
+    let model_path = c2c7demo::resolve_model_path(&args.model)?;
+
     let mut table = Vec::new();
     for entry in fs::read_dir(args.input_dir)? {
         let entry = entry?;
@@ -150,7 +153,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         info!("Load model");
         let model = tract_onnx::onnx()
-            .model_for_path(&args.model)?
+            .model_for_path(&model_path)?
             .with_input_fact(
                 0,
                 InferenceFact::dt_shape(
