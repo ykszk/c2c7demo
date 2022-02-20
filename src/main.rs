@@ -31,31 +31,24 @@ struct Args {
     /// Model path
     #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
     model: String,
-
     /// Specify once or twice to set log level info or debug repsectively.
     #[clap(short, long, parse(from_occurrences))]
     verbose: usize,
-
     /// Face direction
     #[clap(arg_enum, short, long, default_value = "auto")]
     direction: FaceDirection,
-
     /// Save preprocessed image.
     #[clap(long)]
     preprocessed: Option<String>,
-
     /// Save raw output (3D array with shape [6, H, W]).
     #[clap(long)]
     raw: Option<String>,
-
     /// Save heatmap image.
     #[clap(long)]
     heatmap: Option<String>,
-
     /// Save anatomical point coordinates in json.
     #[clap(long)]
     json: Option<String>,
-
     /// No background (input image) for the output.
     #[clap(short, long)]
     no_background: bool,
@@ -166,23 +159,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input_tensor: Tensor = match args.direction {
         FaceDirection::Auto => {
             info!("Face direction Auto");
-            ndarray::Array4::from_shape_fn(
-                (2, 1, input_height as usize, input_width as usize),
-                |(lr, c, y, x)| {
-                    if img.in_bounds(x as _, y as _) {
-                        if lr == 0 {
-                            img[(x as _, y as _)][c] as f32 / 255.0
-                        } else {
-                            // flip
-                            img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32
-                                / 255.0
-                        }
-                    } else {
-                        0.0
-                    }
-                },
-            )
-            .into()
+            c2c7demo::create_input_batch(&img, input_width, input_height).into()
         }
         _ => ndarray::Array4::from_shape_fn(
             (1, 1, input_height as usize, input_width as usize),

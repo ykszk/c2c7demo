@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 #[macro_use]
@@ -87,26 +88,26 @@ impl PointData {
         }
     }
 
-    pub fn save(&self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(&self, filename: &str) -> Result<(), Box<dyn Error>> {
         let writer = std::io::BufWriter::new(std::fs::File::create(filename)?);
-        serde_json::to_writer_pretty(writer, self)
-            .map_err(|err| Box::new(err) as Box<dyn std::error::Error>)
+        serde_json::to_writer_pretty(writer, self).map_err(|err| Box::new(err) as Box<dyn Error>)
     }
 }
 
 /// Find model
 /// Look for the model in the working directory and then in the binary's directory.
-pub fn resolve_model_path(model_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn resolve_model_path(model_path: &str) -> Result<String, Box<dyn Error>> {
     if std::path::Path::new(model_path).exists() {
         Ok(model_path.into())
     } else {
         let mut exe = std::env::current_exe()?;
         exe.set_file_name(DEFAULT_MODEL);
         if !exe.exists() {
-            panic!("Model file not found.");
+            Err(format!("model {} not found", model_path).into())
+        } else {
+            info!("Use default model {:?}", exe);
+            Ok(exe.to_str().unwrap().into())
         }
-        info!("Use default model {:?}", exe);
-        Ok(exe.to_str().unwrap().into())
     }
 }
 
@@ -360,6 +361,29 @@ pub fn draw(
     document
 }
 
+/// Create a batch with mirrored inputs
+pub fn create_input_batch(
+    img: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>,
+    input_width: u32,
+    input_height: u32,
+) -> ndarray::Array4<f32> {
+    ndarray::Array4::from_shape_fn(
+        (2, 1, input_height as usize, input_width as usize),
+        |(lr, c, y, x)| {
+            if img.in_bounds(x as _, y as _) {
+                if lr == 0 {
+                    img[(x as _, y as _)][c] as f32 / 255.0
+                } else {
+                    // flip
+                    img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32 / 255.0
+                }
+            } else {
+                0.0
+            }
+        },
+    )
+}
+
 /// Extract landmark point out of the input heatmaps
 pub fn extract_points(arr: &ndarray::Array3<u8>) -> Vec<Point> {
     let height = arr.shape()[1];
@@ -460,7 +484,7 @@ use dicom::dictionary_std;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 
-pub fn load_dicom(filename: &str) -> Result<image::DynamicImage, Box<dyn std::error::Error>> {
+pub fn load_dicom(filename: &str) -> Result<image::DynamicImage, Box<dyn Error>> {
     use std::fs::File;
     use std::io::Read;
     let mut f = File::open(filename)?;
@@ -472,7 +496,7 @@ pub fn load_dicom(filename: &str) -> Result<image::DynamicImage, Box<dyn std::er
 ///
 /// # Arguments
 /// - bytes: Raw bytes from a dicom file with preamble
-pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn std::error::Error>> {
+pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn Error>> {
     assert!(bytes.len() > 128);
     let wo_preamble = &bytes[128..]; // skip preamble
     let obj = dicom::object::from_reader(wo_preamble)?;
@@ -513,9 +537,7 @@ pub fn luma16toluma8(img: &image::ImageBuffer<image::Luma<u16>, Vec<u16>>) -> im
 }
 
 /// Extract heatmap of landmark points as RGB image from 6 channel output.
-pub fn extract_heatmap(
-    arr: &ndarray::Array3<u8>,
-) -> Result<image::RgbaImage, Box<dyn std::error::Error>> {
+pub fn extract_heatmap(arr: &ndarray::Array3<u8>) -> Result<image::RgbaImage, Box<dyn Error>> {
     let (chs, height, width) = (arr.shape()[0], arr.shape()[1], arr.shape()[2]);
     if chs != 0 {
         return Err(ndarray::ShapeError::from_kind(ndarray::ErrorKind::IncompatibleShape).into());
@@ -544,10 +566,9 @@ pub fn extract_heatmap(
     image::RgbaImage::from_raw(width as _, height as _, rows)
         .ok_or_else(|| "Failed to convert to RGBA image".into())
 }
+
 /// Extract affinity map as RGB image from 6 channel output.
-pub fn extract_affinity(
-    arr: &ndarray::Array3<u8>,
-) -> Result<image::RgbaImage, Box<dyn std::error::Error>> {
+pub fn extract_affinity(arr: &ndarray::Array3<u8>) -> Result<image::RgbaImage, Box<dyn Error>> {
     let (chs, height, width) = (arr.shape()[0], arr.shape()[1], arr.shape()[2]);
     if chs != 0 {
         return Err(ndarray::ShapeError::from_kind(ndarray::ErrorKind::IncompatibleShape).into());
@@ -702,23 +723,10 @@ pub fn create_input_tensor(encoded: &[u8]) -> Result<js_sys::Float32Array, JsVal
     .map_err(|e| JsValue::from(e.to_string()))?;
     info!("Done clahe");
     let pad_width = calc_tensor_width(original_img.dimensions().0, original_img.dimensions().1);
-    let (input_width, input_height) = (pad_width, TARGET_HEIGHT);
+    let (input_width, input_height) = (pad_width, TARGET_HEIGHT as _);
 
-    let tensor_size = (2, 1, input_height as usize, input_width as usize);
     info!("Create input tensor");
-    let input_tensor: ndarray::Array4<f32> =
-        ndarray::Array4::from_shape_fn(tensor_size, |(lr, c, y, x)| {
-            if img.in_bounds(x as _, y as _) {
-                if lr == 0 {
-                    img[(x as _, y as _)][c] as f32 / 255.0
-                } else {
-                    // flip
-                    img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32 / 255.0
-                }
-            } else {
-                0.0
-            }
-        });
+    let input_tensor: ndarray::Array4<f32> = create_input_batch(&img, input_width, input_height);
     debug!("Input shape {:?}", input_tensor.shape());
     let v = input_tensor.into_raw_vec();
     Ok(js_sys::Float32Array::from(&v[..]))
@@ -732,14 +740,12 @@ pub fn process_output(
     original_width: u32,
     original_height: u32,
 ) -> Result<String, JsValue> {
-    let v = Vec::from(raw_output);
-    let arr4 = ndarray::Array4::from_shape_vec((2, 6, TARGET_HEIGHT, tensor_width as _), v)
-        .map_err(|e| JsValue::from(e.to_string()))?;
+    let arr4 =
+        ndarray::ArrayView4::from_shape((2, 6, TARGET_HEIGHT, tensor_width as _), raw_output)
+            .map_err(|e| JsValue::from(e.to_string()))?;
     let best_batch: usize = choose_best_batch(&arr4) as _;
 
-    let flip_needed = best_batch != 0;
-
-    let img_height = 768;
+    let img_height = TARGET_HEIGHT;
     let img_width = calc_resized_width(original_width, original_height);
     let arr3 = arr4
         .slice(ndarray::s![
@@ -750,6 +756,7 @@ pub fn process_output(
         ])
         .map(|v| (v * 255.0) as u8);
 
+    let flip_needed = best_batch != 0;
     let optimal_points = extract_points(&arr3);
     let optimal_points = if flip_needed {
         optimal_points

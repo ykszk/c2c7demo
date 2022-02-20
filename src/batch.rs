@@ -26,7 +26,9 @@ struct Args {
     /// Model path
     #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
     model: String,
-
+    /// Output CSV filename
+    #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
+    csv: String,
     /// Specify once or twice to set log level info or debug repsectively.
     #[clap(short, long, parse(from_occurrences))]
     verbose: usize,
@@ -164,22 +166,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .into_optimized()?
             .into_runnable()?;
 
-        let input_tensor: Tensor = ndarray::Array4::from_shape_fn(
-            (2, 1, input_height as usize, input_width as usize),
-            |(lr, c, y, x)| {
-                if img.in_bounds(x as _, y as _) {
-                    if lr == 0 {
-                        img[(x as _, y as _)][c] as f32 / 255.0
-                    } else {
-                        // flip
-                        img[((img.dimensions().0 - (x + 1) as u32) as _, y as _)][c] as f32 / 255.0
-                    }
-                } else {
-                    0.0
-                }
-            },
-        )
-        .into();
+        let input_tensor: Tensor = c2c7demo::create_input_batch(&img, input_width, input_height).into();
 
         debug!("Input shape {:?}", input_tensor.shape());
         info!("Run model");
@@ -248,7 +235,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         table.push(row);
     }
     let mut csv_filename = output_dir;
-    csv_filename.push("cobb.csv");
+    csv_filename.push(args.csv);
     info!("Save csv {:?}", csv_filename);
     let mut wrt = csv::Writer::from_path(csv_filename)?;
     table
