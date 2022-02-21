@@ -27,7 +27,7 @@ struct Args {
     #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
     model: String,
     /// Output CSV filename
-    #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
+    #[clap(short, long, default_value = "c2c7.csv")]
     csv: String,
     /// Specify once or twice to set log level info or debug repsectively.
     #[clap(short, long, parse(from_occurrences))]
@@ -104,6 +104,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     for entry in fs::read_dir(args.input_dir)? {
         let entry = entry?;
         let input = entry.path();
+        if input.is_dir() {
+            info!("Skip directory {:?}", input);
+            continue
+        }
         let input_str = input.to_str().unwrap();
         let try_dicom = if let Some(ext) = input.extension() {
             info!("Input image extension {:?}", ext);

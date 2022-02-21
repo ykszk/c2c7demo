@@ -247,7 +247,7 @@ pub fn draw(
     let mut angle_text_position = intersect;
 
     if lyon_geom::Box2D::new(tl, br).contains(intersect) {
-        debug!("Inside");
+        debug!("No aux lines");
     } else {
         debug!("Draw aux lines");
         let a = lyon_geom::Point::new(points[0].0, points[0].1);
@@ -327,6 +327,37 @@ pub fn draw(
         ("stroke-width", "0.5px"),
         ("font-weight", "bold"),
     ];
+
+    // adjust angle text position when default position is too right
+    let est_text_width = 0.8f32 * font_size.parse::<f32>().unwrap() * (angle.len() - 2) as f32;
+    if angle_text_position.x + est_text_width > image_width as f32 {
+        let a = lyon_geom::Point::new(points[0].0, points[0].1);
+        let p = lyon_geom::Point::new(points[1].0, points[1].1);
+        let c2dir = (p - a).abs().normalize();
+        use core::ops::Mul;
+        let text_init = if lyon_geom::Box2D::new(tl, br).contains(intersect) {
+            intersect - c2dir.mul(est_text_width)
+        } else {
+            let aux_c2 = if a.distance_to(intersect) > p.distance_to(intersect) {
+                p + (p - a)
+            } else {
+                a + (a - p)
+            };
+            aux_c2 - c2dir.mul(est_text_width)
+        };
+        let t_origin = lyon_geom::Transform::translation(-intersect.x, -intersect.y);
+        let mut rot_angle = c2_line.vector.angle_to(c7_line.vector);
+        rot_angle.radians /= 2.0;
+        let t = t_origin
+            .then_rotate(rot_angle)
+            .then_translate(lyon_geom::Vector::new(intersect.x, intersect.y));
+        let text_pos = t.transform_point(text_init);
+        debug!(
+            "Original and adjusted angle text positions. {:?}, {:?}",
+            angle_text_position, text_pos
+        );
+        angle_text_position = text_pos;
+    }
 
     let mut text = element::Text::new()
         .set("x", angle_text_position.x)
