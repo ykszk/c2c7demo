@@ -50,3 +50,6 @@ csv = "1"
 wasm-bindgen = "0.2"
 wasm-logger = "0"
 js-sys = "0.3"
+
+[dev-dependencies]
+assert_cmd = "2"

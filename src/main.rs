@@ -229,8 +229,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         "",
     );
     if let Some(filename) = args.json {
+        let scale = original_img.dimensions().1 as f32 / c2c7demo::TARGET_HEIGHT as f32;
+        let scaled_points: Vec<c2c7demo::Point> = optimal_points
+            .into_iter()
+            .map(|(x, y)| (scale * x, scale * y))
+            .collect();
+        let scaled_data =
+            PointData::new(&scaled_points, &labels, img_width as _, img_height as _, "");
         info!("Save json {}", filename);
-        data.save(&filename).unwrap();
+        scaled_data.save(&filename).unwrap();
     };
 
     let background = if args.no_background {

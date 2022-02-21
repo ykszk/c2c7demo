@@ -15,6 +15,11 @@ Following two versions are available.
 - Click the measure button.
 - Wait for 5 - 30 seconds.
 
+
+|  Input  |  Result  |
+| ---- | ---- |
+|  <img style="max-width: 30vw" alt="test input" src="tests/img/extension.jpg">  |  <img style="max-width: 30vw" alt="test result" src="tests/img/extension.svg"> |
+
 ## Executable
 Command line programs.
 
