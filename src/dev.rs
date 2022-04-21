@@ -7,12 +7,10 @@ use tract_onnx::prelude::tract_ndarray as ndarray;
 
 use c2c7demo::{extract_points, PointData, LABELS};
 
-use clap::{AppSettings, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
-#[clap(global_setting(AppSettings::PropagateVersion))]
-#[clap(global_setting(AppSettings::UseLongFormatForHelpSubcommand))]
 struct Cli {
     #[clap(subcommand)]
     command: Commands,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::error::Error;
+use std::io::Cursor;
 
 use serde::{Deserialize, Serialize};
 #[macro_use]
@@ -112,15 +113,15 @@ pub fn resolve_model_path(model_path: &str) -> Result<String, Box<dyn Error>> {
 }
 
 fn img2base64(img: &image::DynamicImage, png: bool) -> String {
-    let mut buf = Vec::new();
+    let mut cursor = Cursor::new(Vec::new());
     if png {
-        img.write_to(&mut buf, image::ImageOutputFormat::Png)
+        img.write_to(&mut cursor, image::ImageOutputFormat::Png)
             .unwrap();
     } else {
-        img.write_to(&mut buf, image::ImageOutputFormat::Jpeg(75))
+        img.write_to(&mut cursor, image::ImageOutputFormat::Jpeg(75))
             .unwrap();
     }
-    base64::encode(&buf)
+    base64::encode(&cursor.into_inner())
 }
 
 /// Calculate cobb angle in degrees

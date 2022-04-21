@@ -32,7 +32,7 @@ crate-type = ["rlib", "cdylib"]
 clap = { version = "3", features = ["derive"] }
 log = "0"
 env_logger = "0"
-image = { version="0.23", default-features = false, features = ["png", "jpeg"] }
+image = { version="0.24", default-features = false, features = ["png", "jpeg"] }
 imageproc =  { version = "0", default-features = false }
 dicom = { version = "0", default-features = false }
 tract-onnx = { version = "0", default-features = false }
