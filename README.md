@@ -1,15 +1,15 @@
 # C2C7 Angle Demo
-Demo apps of C2C7 Cobb angle measure by AI presented in our [paper (preprint)](https://europepmc.org/article/ppr/ppr449186).
+Demo apps of C2C7 Cobb angle measure by AI presented in our paper (TBA).
 
 Following two versions are available.
 
-- [Web app](https://yk-szk.github.io/c2c7demo/) for easy use
+- [Web app](https://ykszk.github.io/c2c7demo/) for easy use.
 - [Executable](https://github.com/yk-szk/c2c7demo/releases/latest) for more flexible uses.
 
 ## Web app
 
 ### Usage
-- Open the [web app](https://yk-szk.github.io/c2c7demo/)
+- Open the [web app](https://ykszk.github.io/c2c7demo/)
 - Drop a lateral radiograph of cervical spine. Jpeg and PNG input is supported while dicom is not very well tested.
   - [Google image search](https://www.google.com/search?q=cervical+spine+lateral+radiograph&tbm=isch)
 - Click the measure button.
@@ -39,10 +39,3 @@ The model needs to be compatible with WebGL backend.
 3. Apply [onnx-simplifier](https://github.com/daquexian/onnx-simplifier) to optimize away nodes unavailable in WebGL. e.g. `python -m onnxsim model.onnx simplefied.onnx --input-shape 2,1,768,768 --dynamic-input-shape`
 
 (Note to myself) Do not add the model to the repository. Keep the repo lean.
-
-## Prepare wasm for development and deployment
-Copy onnxruntime wasm as follows for developping.  
-`cd react && cp -r node_modules/onnxruntime-web/dist/*.wasm public/static/js `
-
-Copy wasm for the deployment.  
-`cd react && cp -r node_modules/onnxruntime-web/dist/*.wasm build/static/js `
