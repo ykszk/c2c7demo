@@ -7,7 +7,7 @@ if platform.system() == 'Windows':
     DEFAULT_OUTPUT = 'c2c7demo-windows.zip'
     BIN_EXT = '.exe'
 else:
-    DEFAULT_OUTPUT = 'c2c7demo-mac.zip'
+    DEFAULT_OUTPUT = 'c2c7demo-macos.zip'
     BIN_EXT = ''
 
 
@@ -36,7 +36,7 @@ def main():
             path = bindir / (filename + BIN_EXT)
             zf.write(path, arcname=path.name)
         zf.write(bindir / 'c2c7.onnx', arcname='c2c7.onnx')
-
+    print(f'::set-output name=filename::"{args.output}"')
     return 0
 
 
