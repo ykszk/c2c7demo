@@ -1,0 +1,41 @@
+name: Deploy to Github Pages
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+    - name: Install wasm-pack
+      run: cargo install wasm-pack
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
+    - name: Install dependencies
+      run: cd ./react && npm install
+    - name: Copy onnxruntime
+      run: cd react && mkdir -p public/static/js && cp -r node_modules/onnxruntime-web/dist/*.wasm public/static/js
+    - name: Download model
+      run: cd react && curl -L "https://drive.google.com/uc?export=download&id=1qUwbOi1Gx_t2BvXm9x-qhYEoHWU4SoXP" -o public/c2c7_MNetV2.onnx
+    - name: Build react
+      run: cd ./react && npm run build:wasm && npm run build
+    - name: Publish
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./react/build
