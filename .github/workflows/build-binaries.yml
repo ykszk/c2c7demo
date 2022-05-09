@@ -1,0 +1,75 @@
+name: Build binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Compile
+      run: cargo build --release
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Configure Python 3
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: mklink "%pythonLocation%\python3.exe" "%pythonLocation%\python.exe"
+      
+    - name: Download weights
+      run: python3 script/download_weights.py.py
+      
+    - name: Zip binaries
+      id: zipbin
+      run: python3 script/zip_bin.py
+
+    - name: Upload
+      uses: actions/upload-artifact@v1
+      with:
+        name: artifacts
+        path: ${{ steps.zipbin.outputs.filename }}
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v1
+      with:
+        name: artifacts
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ github.ref }}
+        body: ${{ github.event.head_commit.message }}
+        draft: false
+        prerelease: false
+        files: |
+          artifacts/c2c7demo-windows.zip
+          artifacts/c2c7demo-macos.zip
