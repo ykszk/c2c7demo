@@ -17,6 +17,19 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Configure Python 3 on Windows
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run:
+        if not exist "%pythonLocation%\python.exe" (
+          mklink "%pythonLocation%\python3.exe" "%pythonLocation%\python.exe"
+        )
+
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
@@ -27,18 +40,8 @@ jobs:
     - name: Compile
       run: cargo build --release
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.8
-
-    - name: Configure Python 3
-      if: matrix.os == 'windows-latest'
-      shell: cmd
-      run: mklink "%pythonLocation%\python3.exe" "%pythonLocation%\python.exe"
-      
     - name: Download weights
-      run: python3 script/download_weights.py.py
+      run: pip3 install gdown && python3 script/download_weights.py
       
     - name: Zip binaries
       id: zipbin

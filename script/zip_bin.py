@@ -36,7 +36,7 @@ def main():
             path = bindir / (filename + BIN_EXT)
             zf.write(path, arcname=path.name)
         zf.write(bindir / 'c2c7.onnx', arcname='c2c7.onnx')
-    print(f'::set-output name=filename::"{args.output}"')
+    print(f'::set-output name=filename::{args.output}')
     return 0
 
 

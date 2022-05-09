@@ -39,3 +39,11 @@ The model needs to be compatible with WebGL backend.
 3. Apply [onnx-simplifier](https://github.com/daquexian/onnx-simplifier) to optimize away nodes unavailable in WebGL. e.g. `python -m onnxsim model.onnx simplefied.onnx --input-shape 2,1,768,768 --dynamic-input-shape`
 
 (Note to myself) Do not add the model to the repository. Keep the repo lean.
+
+Weights can be found in [google drive](https://drive.google.com/drive/folders/18Jet4hS7PALKxHSdak3nSURKlO06CLSU?usp=sharing).
+
+## Tests
+Download weights before running tests.
+```sh
+curl -L "https://drive.google.com/uc?export=download&id=1B1EeG38_WTZ42Qg-KlUpnThhEHJQDwkS" -o c2c7.onnx
+```
