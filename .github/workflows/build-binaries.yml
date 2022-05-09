@@ -69,7 +69,7 @@ jobs:
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
-        name: Release ${{ github.ref }}
+        name: Release ${{ github.ref_name }}
         body: ${{ github.event.head_commit.message }}
         draft: false
         prerelease: false

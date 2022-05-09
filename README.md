@@ -18,7 +18,9 @@ Following two versions are available.
 
 |  Input  |  Result  |
 | ---- | ---- |
-|  <img style="max-width: 30vw" alt="test input" src="tests/img/extension.jpg">  |  <img style="max-width: 30vw" alt="test result" src="tests/img/extension.svg"> |
+|  <img style="width: 30vw" alt="test input" src="tests/img/extension.jpg">  |  <img style="width: 30vw" alt="test result" src="tests/img/extension.svg"> |
+
+[image attribution](tests/img/ATTRIBUTION.md)
 
 ## Executable
 Command line programs.

@@ -1,0 +1,1 @@
+Case courtesy of Assoc Prof Frank Gaillard, [Radiopaedia.org](https://radiopaedia.org/?lang=us). From the case [rID: 10338](https://radiopaedia.org/cases/10338?lang=us)
