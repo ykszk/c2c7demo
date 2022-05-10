@@ -746,7 +746,7 @@ pub fn create_input_tensor(encoded: &[u8]) -> Result<js_sys::Float32Array, JsVal
         }
         DynamicImage::ImageLuma16(img) => {
             debug!("input u16 to clahe");
-            clahe::clahe(img, 32, 32, 10000)
+            clahe::clahe(img, 32, 32, 100)
         }
         _ => {
             return Err(JsValue::from("Unsupported image"));
