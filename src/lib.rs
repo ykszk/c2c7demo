@@ -241,7 +241,12 @@ pub fn draw(
         // facing left
         angle_degree
     };
-    let intersect = c2_line.intersection(&c7_line).unwrap();
+    let intersect = c2_line.intersection(&c7_line);
+    let intersect = match intersect {
+        // When c2_line and c7_line are parallel, use the middle point of p1 and p3 as a pseudo intersection
+        None => c2_line.point.lerp(c7_line.point, 0.5),
+        Some(p) => p,
+    };
     let angle = format!("{:.1}°", angle_degree);
     debug!("angle {}", angle);
 
@@ -663,9 +668,12 @@ where
 
 extern crate wasm_bindgen;
 use wasm_bindgen::prelude::*;
+extern crate console_error_panic_hook;
+use std::panic;
 
 #[wasm_bindgen(start)]
 pub fn main() {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
     wasm_logger::init(wasm_logger::Config::default());
     debug!("logger initialized");
 }
