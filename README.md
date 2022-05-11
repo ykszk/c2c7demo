@@ -1,3 +1,6 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6534474.svg)](https://doi.org/10.5281/zenodo.6534474)
+
+
 # C2C7 Angle Demo
 Demo apps of C2C7 Cobb angle measure by AI presented in our paper (TBA).
 

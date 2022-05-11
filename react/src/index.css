@@ -72,7 +72,7 @@ div.main>div {
   background-color: #00000022;
 }
 
-img {
+#root img {
   width: min(512px, 98vw);
   /* max-height: min(512px, 100vw); */
 }
