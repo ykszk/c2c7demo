@@ -489,30 +489,29 @@ pub fn extract_points(arr: &ndarray::Array3<u8>) -> Vec<Point> {
     for c2c7 in 0..2 {
         let cand_left = &candidates[c2c7 * 2];
         let cand_right = &candidates[c2c7 * 2 + 1];
-        if cand_left.len() == 1 && cand_right.len() == 1 {
-            debug!("No need to find optimal point pairs for {}", c2c7);
-            optimal_points.push(cand_left[0]);
-            optimal_points.push(cand_right[0]);
-        } else {
-            debug!("Find optimal point pairs for {}", c2c7);
-            let affinity = arr.slice(s![c2c7 + 4, .., ..]);
-            let mut scores: Vec<(usize, Point, Point)> =
-                Vec::with_capacity(cand_left.len() * cand_right.len());
-            for left in cand_left.iter() {
-                for right in cand_right.iter() {
-                    debug!("Calculate the score of {:?},{:?}", left, right);
-                    let l = (left.0 as isize, left.1 as isize);
-                    let r = (right.0 as isize, right.1 as isize);
-                    let score: usize = line_drawing::Bresenham::new(l, r)
-                        .map(|(y, x)| affinity[[y as usize, x as usize]] as usize)
-                        .sum();
-                    scores.push((score, *left, *right));
-                }
+        let affinity = arr.slice(s![c2c7 + 4, .., ..]);
+        debug!("Find optimal point pairs for {}", c2c7);
+        let mut scores: Vec<(u8, Point, Point)> =
+            Vec::with_capacity(cand_left.len() * cand_right.len());
+        for left in cand_left.iter() {
+            for right in cand_right.iter() {
+                debug!("Calculate the score of {:?},{:?}", left, right);
+                let l = (left.0 as isize, left.1 as isize);
+                let r = (right.0 as isize, right.1 as isize);
+                let score_n_count = line_drawing::Bresenham::new(l, r)
+                    .map(|(y, x)| (affinity[[y as usize, x as usize]] as usize, 1))
+                    .reduce(|accum, item| (accum.0 + item.0, accum.1 + item.1));
+                let score = match score_n_count {
+                    None => u8::MAX,
+                    Some((sum, count)) => (sum as f64 / count as f64) as u8,
+                };
+                scores.push((score, *left, *right));
             }
-            let (_optimal_score, left, right) = scores.into_iter().max_by_key(|t| t.0).unwrap();
-            optimal_points.push(left);
-            optimal_points.push(right);
         }
+        let (optimal_score, left, right) = scores.into_iter().max_by_key(|t| t.0).unwrap();
+        info!("Optimal score for {}:{}", c2c7, optimal_score as f64 / u8::MAX as f64);
+        optimal_points.push(left);
+        optimal_points.push(right);
     }
     optimal_points.into_iter().map(|(y, x)| (x, y)).collect()
 }
