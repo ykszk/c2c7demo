@@ -27,7 +27,7 @@ jobs:
       run: sed 's/sans-serif/Liberation Sans/g' -i tests/img/extension.svg && convert -density 200 tests/img/extension.svg -crop 1200x900+200+400 react/public/thumbnail.jpg
 
     - name: Install wasm-pack
-      run: cargo install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       
     - name: Setup Node.js
       uses: actions/setup-node@v2
