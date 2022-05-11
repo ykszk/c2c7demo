@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6534474.svg)](https://doi.org/10.5281/zenodo.6534474)
+[![DOI](react/public/doi_badge.svg)](https://doi.org/10.5281/zenodo.6534474)
 
 
 # C2C7 Angle Demo
@@ -37,7 +37,7 @@ Command line programs.
 Executable varsion is coded in rust. Some functions are exported as wasm for the web app version.
 
 ## Create ONNX model for the web app
-The model needs to be compatible with WebGL backend.
+~~The model needs to be compatible with WebGL backend.~~
 
 1. Use `torch.onnx.export` to export to ONNX model
 2. Apply `resize_align_corners.py` to change resize mode to align_corners. `pytorch_half_pixel` is not available in WebGL?
