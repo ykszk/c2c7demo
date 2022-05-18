@@ -509,7 +509,11 @@ pub fn extract_points(arr: &ndarray::Array3<u8>) -> Vec<Point> {
             }
         }
         let (optimal_score, left, right) = scores.into_iter().max_by_key(|t| t.0).unwrap();
-        info!("Optimal score for {}:{}", c2c7, optimal_score as f64 / u8::MAX as f64);
+        info!(
+            "Optimal score for {}:{}",
+            c2c7,
+            optimal_score as f64 / u8::MAX as f64
+        );
         optimal_points.push(left);
         optimal_points.push(right);
     }
@@ -551,8 +555,14 @@ pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn E
     let pixel_data_bytes = obj.element(dicom::core::Tag(0x7FE0, 0x0010))?.to_bytes()?;
 
     type PixelType = u16;
-    let pixels: Vec<PixelType> =
+    let mut pixels: Vec<PixelType> =
         unsafe { (pixel_data_bytes.into_owned().align_to::<PixelType>().1).to_vec() };
+    let monochrome = obj.element_by_name("PhotometricInterpretation")?.to_str()?;
+    if monochrome == "MONOCHROME1" {
+        info!("Invert pixel values");
+        let pmax = *pixels.iter().max().unwrap();
+        pixels.iter_mut().for_each(|p| *p = pmax - *p);
+    }
     let pixels_u16: Vec<u16> = pixels.into_iter().collect();
     type OutputPixelType = u16;
     let buf: ImageBuffer<image::Luma<OutputPixelType>, Vec<OutputPixelType>> =
