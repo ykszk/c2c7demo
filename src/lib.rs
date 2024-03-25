@@ -115,11 +115,9 @@ pub fn resolve_model_path(model_path: &str) -> Result<String, Box<dyn Error>> {
 fn img2base64(img: &image::DynamicImage, png: bool) -> String {
     let mut cursor = Cursor::new(Vec::new());
     if png {
-        img.write_to(&mut cursor, image::ImageOutputFormat::Png)
-            .unwrap();
+        img.write_to(&mut cursor, image::ImageFormat::Png).unwrap();
     } else {
-        img.write_to(&mut cursor, image::ImageOutputFormat::Jpeg(75))
-            .unwrap();
+        img.write_to(&mut cursor, image::ImageFormat::Jpeg).unwrap();
     }
     base64::encode(&cursor.into_inner())
 }
@@ -365,7 +363,7 @@ pub fn draw(
         angle_text_position = text_pos;
     }
 
-    let mut text = element::Text::new()
+    let mut text = element::Text::new("")
         .set("x", angle_text_position.x)
         .set("y", angle_text_position.y);
     text = text_attr
@@ -520,9 +518,9 @@ pub fn extract_points(arr: &ndarray::Array3<u8>) -> Vec<Point> {
     optimal_points.into_iter().map(|(y, x)| (x, y)).collect()
 }
 
-use dicom::dictionary_std;
+use dicom_pixeldata::PixelDecoder;
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageBuffer};
+use image::{DynamicImage, GenericImageView};
 
 pub fn load_dicom(filename: &str) -> Result<image::DynamicImage, Box<dyn Error>> {
     use std::fs::File;
@@ -540,34 +538,8 @@ pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn E
     assert!(bytes.len() > 128);
     let wo_preamble = &bytes[128..]; // skip preamble
     let obj = dicom::object::from_reader(wo_preamble)?;
-    let pixel_representation: u8 = obj.element_by_name("PixelRepresentation")?.to_int()?;
-    let bits_allocated: u8 = obj.element_by_name("BitsAllocated")?.to_int()?;
-    let bits_stored: u8 = obj.element_by_name("BitsStored")?.to_int()?;
-    debug!(
-        "pixel representation {}, bits_stored {}",
-        pixel_representation, bits_stored
-    );
-    // let compression: u8 = obj.element_by_name("LossyImageCompression")?.to_int()?;
-    assert_eq!(bits_allocated, 16, "Not a 16bit dicom");
-    let width: u32 = obj.element(dictionary_std::tags::COLUMNS)?.to_int()?;
-    let height: u32 = obj.element(dictionary_std::tags::ROWS)?.to_int()?;
-
-    let pixel_data_bytes = obj.element(dicom::core::Tag(0x7FE0, 0x0010))?.to_bytes()?;
-
-    type PixelType = u16;
-    let mut pixels: Vec<PixelType> =
-        unsafe { (pixel_data_bytes.into_owned().align_to::<PixelType>().1).to_vec() };
-    let monochrome = obj.element_by_name("PhotometricInterpretation")?.to_str()?;
-    if monochrome == "MONOCHROME1" {
-        info!("Invert pixel values");
-        let pmax = *pixels.iter().max().unwrap();
-        pixels.iter_mut().for_each(|p| *p = pmax - *p);
-    }
-    let pixels_u16: Vec<u16> = pixels.into_iter().collect();
-    type OutputPixelType = u16;
-    let buf: ImageBuffer<image::Luma<OutputPixelType>, Vec<OutputPixelType>> =
-        ImageBuffer::from_raw(width, height, pixels_u16).unwrap();
-    Ok(DynamicImage::ImageLuma16(buf))
+    let image = obj.decode_pixel_data()?.to_dynamic_image(0)?;
+    Ok(image)
 }
 
 /// Convert 16bit gray image into 8bit image using minmax normalization

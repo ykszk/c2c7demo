@@ -13,7 +13,7 @@ use image::{DynamicImage, GenericImageView};
 use tract_onnx::prelude::tract_ndarray as ndarray;
 use tract_onnx::prelude::*;
 
-#[derive(clap::ArgEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Debug)]
 enum FaceDirection {
     Left,
     Right,
@@ -31,11 +31,8 @@ struct Args {
     /// Model path
     #[clap(short, long, default_value = c2c7demo::DEFAULT_MODEL)]
     model: String,
-    /// Specify once or twice to set log level info or debug repsectively.
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: usize,
     /// Face direction
-    #[clap(arg_enum, short, long, default_value = "auto")]
+    #[clap(short, long, default_value = "auto")]
     direction: FaceDirection,
     /// Save preprocessed image.
     #[clap(long)]
@@ -57,14 +54,7 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let log_level = if args.verbose == 0 {
-        "error"
-    } else if args.verbose == 1 {
-        "info"
-    } else {
-        "debug"
-    };
-    let env = Env::default().filter_or("LOG_LEVEL", log_level);
+    let env = Env::default().filter_or("LOG_LEVEL", "info");
     Builder::from_env(env)
         .format_timestamp(Some(env_logger::TimestampPrecision::Seconds))
         .init();

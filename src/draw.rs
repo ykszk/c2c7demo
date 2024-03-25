@@ -19,23 +19,12 @@ struct Args {
     /// Background image
     #[clap(short, long)]
     background: Option<String>,
-
-    /// Specify once or twice to set log level info or debug repsectively.
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: usize,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let log_level = if args.verbose == 0 {
-        "error"
-    } else if args.verbose == 1 {
-        "info"
-    } else {
-        "debug"
-    };
-    let env = Env::default().filter_or("LOG_LEVEL", log_level);
+    let env = Env::default().filter_or("LOG_LEVEL", "info");
     Builder::from_env(env)
         .format_timestamp(Some(env_logger::TimestampPrecision::Seconds))
         .init();

@@ -29,9 +29,6 @@ struct Args {
     /// Output CSV filename
     #[clap(short, long, default_value = "c2c7.csv")]
     csv: String,
-    /// Specify once or twice to set log level info or debug repsectively.
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -72,14 +69,7 @@ impl TableRow {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let log_level = if args.verbose == 0 {
-        "error"
-    } else if args.verbose == 1 {
-        "info"
-    } else {
-        "debug"
-    };
-    let env = Env::default().filter_or("LOG_LEVEL", log_level);
+    let env = Env::default().filter_or("LOG_LEVEL", "info");
     Builder::from_env(env)
         .format_timestamp(Some(env_logger::TimestampPrecision::Seconds))
         .init();
@@ -106,7 +96,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let input = entry.path();
         if input.is_dir() {
             info!("Skip directory {:?}", input);
-            continue
+            continue;
         }
         let input_str = input.to_str().unwrap();
         let try_dicom = if let Some(ext) = input.extension() {
@@ -170,7 +160,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             .into_optimized()?
             .into_runnable()?;
 
-        let input_tensor: Tensor = c2c7demo::create_input_batch(&img, input_width, input_height).into();
+        let input_tensor: Tensor =
+            c2c7demo::create_input_batch(&img, input_width, input_height).into();
 
         debug!("Input shape {:?}", input_tensor.shape());
         info!("Run model");
