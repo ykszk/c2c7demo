@@ -245,19 +245,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         debug!("Save SVG");
         svg::save(args.output, &document).unwrap();
     } else {
-        let mut opt = usvg::Options::default();
-        opt.fontdb.load_system_fonts();
-        let rtree = usvg::Tree::from_str(&document.to_string(), &opt.to_ref()).unwrap();
-        let pixmap_size = rtree.svg_node().size.to_screen_size();
-        let mut pixmap = tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
+        let opt = usvg::Options::default();
+        let fontdb = usvg::fontdb::Database::default();
+        let rtree = usvg::Tree::from_str(&document.to_string(), &opt, &fontdb).unwrap();
+        let pixmap_size = rtree.size();
+        let mut pixmap =
+            tiny_skia::Pixmap::new(pixmap_size.width() as u32, pixmap_size.height() as u32)
+                .unwrap();
         debug!("Render");
         resvg::render(
             &rtree,
-            usvg::FitTo::Original,
             tiny_skia::Transform::default(),
-            pixmap.as_mut(),
-        )
-        .unwrap();
+            &mut pixmap.as_mut(),
+        );
         image::RgbaImage::from_raw(pixmap.width(), pixmap.height(), pixmap.data().into())
             .unwrap()
             .save(args.output)

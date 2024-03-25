@@ -119,7 +119,8 @@ fn img2base64(img: &image::DynamicImage, png: bool) -> String {
     } else {
         img.write_to(&mut cursor, image::ImageFormat::Jpeg).unwrap();
     }
-    base64::encode(&cursor.into_inner())
+    use base64::prelude::*;
+    BASE64_STANDARD.encode(cursor.into_inner())
 }
 
 /// Calculate cobb angle in degrees
@@ -538,7 +539,11 @@ pub fn load_dicom_from_u8(bytes: &[u8]) -> Result<image::DynamicImage, Box<dyn E
     assert!(bytes.len() > 128);
     let wo_preamble = &bytes[128..]; // skip preamble
     let obj = dicom::object::from_reader(wo_preamble)?;
-    let image = obj.decode_pixel_data()?.to_dynamic_image(0)?;
+    let mut image = obj.decode_pixel_data()?.to_dynamic_image(0)?;
+    let monochrome = obj.element_by_name("PhotometricInterpretation")?.to_str()?;
+    if monochrome == "MONOCHROME1" {
+        image.invert();
+    };
     Ok(image)
 }
 

@@ -99,12 +99,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             continue;
         }
         let input_str = input.to_str().unwrap();
-        let try_dicom = if let Some(ext) = input.extension() {
+        let try_dicom = input.extension().map_or(true, |ext| {
             info!("Input image extension {:?}", ext);
             ext == "dcm" || ext == "dicom"
-        } else {
-            false
-        };
+        });
 
         info!("Open {:?}", input);
         let original_img = if try_dicom {
